@@ -69,7 +69,6 @@ public class V1_28_1__Address_Book extends BaseJavaMigration {
 
     @Override
     public void migrate(Context context) throws Exception {
-        // verify if java migration should be skipped
         if (Utility.skipMigrationVersion(getVersion(), context.getConfiguration())) {
             return;
         }

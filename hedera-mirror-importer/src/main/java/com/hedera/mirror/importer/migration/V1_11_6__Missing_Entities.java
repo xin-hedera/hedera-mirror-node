@@ -62,7 +62,6 @@ public class V1_11_6__Missing_Entities extends BaseJavaMigration {
 
     @Override
     public void migrate(Context context) throws Exception {
-        // verify if java migration should be skipped
         if (Utility.skipMigrationVersion(getVersion(), context.getConfiguration())) {
             return;
         }
