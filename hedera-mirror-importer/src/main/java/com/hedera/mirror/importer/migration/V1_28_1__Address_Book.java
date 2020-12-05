@@ -48,6 +48,7 @@ import com.hedera.mirror.importer.domain.EntityTypeEnum;
 import com.hedera.mirror.importer.domain.FileData;
 import com.hedera.mirror.importer.domain.TransactionTypeEnum;
 import com.hedera.mirror.importer.util.EntityIdEndec;
+import com.hedera.mirror.importer.util.Utility;
 
 @Log4j2
 @Named
@@ -68,6 +69,11 @@ public class V1_28_1__Address_Book extends BaseJavaMigration {
 
     @Override
     public void migrate(Context context) throws Exception {
+        // verify if java migration should be skipped
+        if (Utility.skipMigrationVersion(getVersion(), context.getConfiguration())) {
+            return;
+        }
+
         jdbcTemplate = new JdbcTemplate(dataSource);
         Stopwatch stopwatch = Stopwatch.createStarted();
         AtomicLong currentConsensusTimestamp = new AtomicLong(0);

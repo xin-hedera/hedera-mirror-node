@@ -54,7 +54,7 @@ public class V1_11_6__Missing_Entities extends BaseJavaMigration {
     // break it.
     // Correct way is to not use repositories and construct manually: new JdbcTemplate(context.getConnection())
     public V1_11_6__Missing_Entities(MirrorProperties mirrorProperties, @Lazy EntityRepository entityRepository,
-            @Lazy JdbcOperations jdbcOperations) {
+                                     @Lazy JdbcOperations jdbcOperations) {
         this.mirrorProperties = mirrorProperties;
         this.entityRepository = entityRepository;
         this.jdbcOperations = jdbcOperations;
@@ -62,6 +62,11 @@ public class V1_11_6__Missing_Entities extends BaseJavaMigration {
 
     @Override
     public void migrate(Context context) throws Exception {
+        // verify if java migration should be skipped
+        if (Utility.skipMigrationVersion(getVersion(), context.getConfiguration())) {
+            return;
+        }
+
         File accountInfoFile = getAccountInfoPath().toFile();
         if (!accountInfoFile.exists() || !accountInfoFile.canRead()) {
             log.warn("Skipping entity import due to missing file {}", accountInfoFile.getAbsoluteFile());
