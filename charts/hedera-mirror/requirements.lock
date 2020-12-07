@@ -17,5 +17,8 @@ dependencies:
 - name: hedera-mirror-rest
   repository: file://../hedera-mirror-rest
   version: 0.11.0
-digest: sha256:6b933a7b21a513ff4e4205dc5dcca8ddfe45a5ba30b53cb876ae6de275a19abc
-generated: "2020-12-10T09:36:32.637676-06:00"
+- name: timescaledb-multinode
+  repository: https://raw.githubusercontent.com/timescale/timescaledb-kubernetes/master/charts/repo/
+  version: 0.7.0
+digest: sha256:f65a9344cc6ec103bfe2b6b78f44c21f7050f217f6b48a60080c01babac0fa72
+generated: "2020-12-07T09:26:44.817662-06:00"
