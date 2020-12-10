@@ -73,37 +73,37 @@ jobs:
           restore-keys: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-
 
       - name: Configure config
-          run: |
-            cat >> ./application.yml \<< EOF
-            db: &db
-              db:
-                host: 127.0.0.1
-                port: 5432
-                name: mirror_node_integration
-                username: mirror_node
-                password: mirror_node_pass
-            hedera:
-              mirror:
-                importer:
-                  \<<: *db
-                grpc:
-                  \<<: *db
-            spring:
-              flyway:
-                baseline-version: 1.999.999
-                locations: "filesystem:./src/main/resources/db/migration/v2,filesystem:../hedera-mirror-importer/src/main/resources/db/migration/v2"
-                target: 2.999.999
-              redis:
-                url: redis://127.0.0.1:6379
-            ---
-            spring:
-              profiles: pubsub
-              cloud:
-                gcp:
-                  pubsub:
-                    projectId: my-project-id # Pubsub emulator's default values
-                    emulator-host: 127.0.0.1:8085
-            EOF
+        run: |
+          cat >> ./application.yml \<< EOF
+          db: &db
+            db:
+              host: 127.0.0.1
+              port: 5432
+              name: mirror_node_integration
+              username: mirror_node
+              password: mirror_node_pass
+          hedera:
+            mirror:
+              importer:
+                \<<: *db
+              grpc:
+                \<<: *db
+          spring:
+            flyway:
+              baseline-version: 1.999.999
+              locations: "filesystem:./src/main/resources/db/migration/v2,filesystem:../hedera-mirror-importer/src/main/resources/db/migration/v2"
+              target: 2.999.999
+            redis:
+              url: redis://127.0.0.1:6379
+          ---
+          spring:
+            profiles: pubsub
+            cloud:
+              gcp:
+                pubsub:
+                  projectId: my-project-id # Pubsub emulator's default values
+                  emulator-host: 127.0.0.1:8085
+          EOF
 
       - name: Grpc Maven Package
         run: ./mvnw ${MAVEN_CLI_OPTS} ${MAVEN_SPRING_OPTS} package -pl '!hedera-mirror-importer,-hedera-mirror-test'
@@ -142,37 +142,37 @@ jobs:
           restore-keys: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-
 
       - name: Configure config
-          run: |
-            cat >> ./application.yml \<< EOF
-            db: &db
-              db:
-                host: 127.0.0.1
-                port: 5432
-                name: mirror_node_integration
-                username: mirror_node
-                password: mirror_node_pass
-            hedera:
-              mirror:
-                importer:
-                  \<<: *db
-                grpc:
-                  \<<: *db
-            spring:
-              flyway:
-                baseline-version: 1.999.999
-                locations: "filesystem:./src/main/resources/db/migration/v2,filesystem:../hedera-mirror-importer/src/main/resources/db/migration/v2"
-                target: 2.999.999
-              redis:
-                url: redis://127.0.0.1:6379
-            ---
-            spring:
-              profiles: pubsub
-              cloud:
-                gcp:
-                  pubsub:
-                    projectId: my-project-id # Pubsub emulator's default values
-                    emulator-host: 127.0.0.1:8085
-            EOF
+        run: |
+          cat >> ./application.yml \<< EOF
+          db: &db
+            db:
+              host: 127.0.0.1
+              port: 5432
+              name: mirror_node_integration
+              username: mirror_node
+              password: mirror_node_pass
+          hedera:
+            mirror:
+              importer:
+                \<<: *db
+              grpc:
+                \<<: *db
+          spring:
+            flyway:
+              baseline-version: 1.999.999
+              locations: "filesystem:./src/main/resources/db/migration/v2,filesystem:../hedera-mirror-importer/src/main/resources/db/migration/v2"
+              target: 2.999.999
+            redis:
+              url: redis://127.0.0.1:6379
+          ---
+          spring:
+            profiles: pubsub
+            cloud:
+              gcp:
+                pubsub:
+                  projectId: my-project-id # Pubsub emulator's default values
+                  emulator-host: 127.0.0.1:8085
+          EOF
 
       - name: Import Maven Package
         run: ./mvnw ${MAVEN_CLI_OPTS} ${MAVEN_SPRING_OPTS} package -pl '!hedera-mirror-grpc,-hedera-mirror-test'
