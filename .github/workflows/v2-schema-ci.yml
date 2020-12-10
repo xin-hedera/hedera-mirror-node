@@ -1,0 +1,96 @@
+name: "Standalone Module UTs v2 Schema"
+
+on:
+  push:
+    branches: [ v2-schema-gitactions, master, release/** ]
+  pull_request:
+    branches: [ master, release/** ]
+
+jobs:
+  grpc-test:
+    name: Importer UTs
+    runs-on: ubuntu-latest
+    env:
+      MAVEN_CLI_OPTS: --batch-mode --no-transfer-progress --show-version -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+      MAVEN_SPRING_OPTS: -Dspring.flyway.baselineVersion=1.999.999 -Dspring.flyway.target=2.999.999 -Dspring.flyway.locations="filesystem:./src/main/resources/db/migration/v1,filesystem:../hedera-mirror-importer/src/main/resources/db/migration/v1" -Dembedded.postgresql.docker-image=timescaledev/timescaledb-ha:pg12-ts2.0.0-rc3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      # If this run was triggered by a pull request event, then checkout
+      # the head of the pull request instead of the merge commit.
+      - run: git checkout HEAD^2
+        if: ${{ github.event_name == 'pull_request' }}
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+
+      - name: Cache Maven packages
+        uses: actions/cache@v1
+        with:
+          key: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/pom.xml') }}
+          path: ~/.m2
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Grpc Maven Package
+        run: ./mvnw ${MAVEN_CLI_OPTS} ${MAVEN_SPRING_OPTS} package -pl hedera-mirror-grpc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  importer-test:
+    name: Importer UTs
+    runs-on: ubuntu-latest
+    env:
+      MAVEN_CLI_OPTS: --batch-mode --no-transfer-progress --show-version -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+      MAVEN_SPRING_OPTS: -Dspring.config.additional-location=file:${WORKSPACE}/ -Dembedded.containers.enabled=false -Dembedded.google.pubsub.enabled=false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      # If this run was triggered by a pull request event, then checkout
+      # the head of the pull request instead of the merge commit.
+      - run: git checkout HEAD^2
+        if: ${{ github.event_name == 'pull_request' }}
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+
+      - name: Cache Maven packages
+        uses: actions/cache@v1
+        with:
+          key: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/pom.xml') }}
+          path: ~/.m2
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Import Maven Package
+        run: ./mvnw ${MAVEN_CLI_OPTS} ${MAVEN_SPRING_OPTS} package -pl hedera-mirror-importer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  rest-test:
+    name: REST UTs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          TEST_S3_HOST: "127.0.0.1"
