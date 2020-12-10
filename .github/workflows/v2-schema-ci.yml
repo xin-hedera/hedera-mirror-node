@@ -39,14 +39,14 @@ jobs:
         with:
           key: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/pom.xml') }}
           path: ~/.m2
-          restore-keys: ${{ runner.os }}-m2
+          restore-keys: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-
 
   grpc-test:
     name: Grpc UTs
     runs-on: ubuntu-latest
     env:
       MAVEN_CLI_OPTS: --batch-mode --no-transfer-progress --show-version -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
-      MAVEN_SPRING_OPTS: -Dspring.flyway.baselineVersion=1.999.999 -Dspring.flyway.target=2.999.999 -Dembedded.postgresql.docker-image=timescaledev/timescaledb-ha:pg12-ts2.0.0-rc3
+      MAVEN_SPRING_OPTS: -Dspring.flyway.baselineVersion=1.999.999 -Dspring.flyway.target=2.999.999 -Dspring.flyway.locations="filesystem:../hedera-mirror-importer/src/main/resources/db/migration/v1" -Dembedded.postgresql.docker-image=timescaledev/timescaledb-ha:pg12-ts2.0.0-rc3
 
     steps:
       - name: Checkout repository
@@ -64,12 +64,12 @@ jobs:
         with:
           java-version: 11
 
-      - name: Cache Maven packages
+      - name: Restore Maven packages
         uses: actions/cache@v1
         with:
           key: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/pom.xml') }}
           path: ~/.m2
-          restore-keys: ${{ runner.os }}-m2
+          restore-keys: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-
 
       - name: Grpc Maven Package
         run: ./mvnw ${MAVEN_CLI_OPTS} ${MAVEN_SPRING_OPTS} package -pl hedera-mirror-grpc
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MAVEN_CLI_OPTS: --batch-mode --no-transfer-progress --show-version -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
-      MAVEN_SPRING_OPTS: -Dspring.flyway.baselineVersion=1.999.999 -Dspring.flyway.target=2.999.999 -Dembedded.postgresql.docker-image=timescaledev/timescaledb-ha:pg12-ts2.0.0-rc3
+      MAVEN_SPRING_OPTS: -Dspring.flyway.baselineVersion=1.999.999 -Dspring.flyway.target=2.999.999 -Dspring.flyway.locations="filesystem:./src/main/resources/db/migration/v1" -Dembedded.postgresql.docker-image=timescaledev/timescaledb-ha:pg12-ts2.0.0-rc3
 
     steps:
       - name: Checkout repository
@@ -99,12 +99,12 @@ jobs:
         with:
           java-version: 11
 
-      - name: Cache Maven packages
+      - name: Restore Maven packages
         uses: actions/cache@v1
         with:
           key: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/pom.xml') }}
           path: ~/.m2
-          restore-keys: ${{ runner.os }}-m2
+          restore-keys: ${{ runner.os }}-m2-${{ secrets.CACHE_VERSION }}-
 
       - name: Import Maven Package
         run: ./mvnw ${MAVEN_CLI_OPTS} ${MAVEN_SPRING_OPTS} package -pl hedera-mirror-importer
