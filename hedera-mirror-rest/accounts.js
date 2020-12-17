@@ -100,7 +100,7 @@ const getAccountQuery = (extraWhereCondition, orderClause, order, query) => {
  * @return {Promise} Promise for PostgreSQL query
  */
 const getAccounts = async (req, res) => {
-  // Validate query parameters first
+  // Validate query parameters first. test
   await utils.validateReq(req);
 
   // Parse the filter parameters for account-numbers, balances, publicKey and pagination
