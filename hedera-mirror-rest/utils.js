@@ -226,7 +226,7 @@ const validateReq = async (req) => {
     throw InvalidArgumentError.forParams(badParams);
   }
 
-  return Promise.resolve();
+  return Promise.resolve((r) => r(true));
 };
 
 const parseTimestampParam = (timestampParam) => {
