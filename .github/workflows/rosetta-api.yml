@@ -88,7 +88,13 @@ jobs:
 
       - name: Run Rosetta CLI Data Validation
         working-directory: ./hedera-mirror-rosetta/scripts/validation
-        run: ./run-validation.sh testnet data
+        run: |
+          ./run-validation.sh testnet data && code=0 || code=$?
+
+          echo "container log"
+          docker logs $(docker ps -l -q)
+
+          exit $code
 
 #      - name: Run Rosetta CLI Validation
 #        working-directory: ./hedera-mirror-rosetta/scripts/validation
