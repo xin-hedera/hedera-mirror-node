@@ -25,6 +25,7 @@ jobs:
       create_pr: ${{ env.CREATE_PR }}
       next_chart_version_snapshot: ${{ env.NEXT_CHART_VERSION_SNAPSHOT }}
       next_version_snapshot: ${{ env.NEXT_VERSION_SNAPSHOT }}
+      pr_title: ${{ env.PR_TITLE }}
       release_branch: ${{ env.RELEASE_BRANCH }}
 
     steps:
