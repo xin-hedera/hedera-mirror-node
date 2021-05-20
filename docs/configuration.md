@@ -43,6 +43,7 @@ value, it is recommended to only populate overridden properties in the custom `a
 | `hedera.mirror.importer.downloader.balance.threads`                  | 15                      | The number of threads to search for new files to download                                      |
 | `hedera.mirror.importer.downloader.bucketName`                       |                         | The cloud storage bucket name to download streamed files. This value takes priority over network hardcoded bucket names regardless of `hedera.mirror.importer.network` value.|
 | `hedera.mirror.importer.downloader.cloudProvider`                    | S3                      | The cloud provider to download files from. Either `S3` or `GCP`                                |
+| `hedera.mirror.importer.downloader.consensusRatio`                   | 0.333                   | The ratio of verified nodes (nodes used to come to consensus on the signature file hash) to total number of nodes available |
 | `hedera.mirror.importer.downloader.endpointOverride`                 |                         | Can be specified to download streams from a source other than S3 and GCP. Should be S3 compatible |
 | `hedera.mirror.importer.downloader.event.batchSize`                  | 100                     | The number of signature files to download per node before downloading the signed files         |
 | `hedera.mirror.importer.downloader.event.enabled`                    | false                   | Whether to enable event file downloads                                                         |
@@ -357,12 +358,16 @@ The following table lists the available properties along with their default valu
 
 Name                                                    | Default                 | Description
 ------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------
-`hedera.mirror.rosetta.apiVersion`                      | 1.4.4                   | The version of the Rosetta interface the implementation adheres to
+`hedera.mirror.rosetta.apiVersion`                      | 1.4.10                  | The version of the Rosetta interface the implementation adheres to
 `hedera.mirror.rosetta.db.host`                         | 127.0.0.1               | The IP or hostname used to connect to the database
 `hedera.mirror.rosetta.db.name`                         | mirror_node             | The name of the database
-`hedera.mirror.rosetta.db.password`                     | mirror_rosetta_pass     | The database password the processor uses to connect.
+`hedera.mirror.rosetta.db.password`                     | mirror_rosetta_pass     | The database password the processor uses to connect
+`hedera.mirror.rosetta.db.pool.maxIdleConnections`      | 20                      | The maximum number of idle database connections
+`hedera.mirror.rosetta.db.pool.maxLifetime`             | 30                      | The maximum lifetime of a database connection in minutes
+`hedera.mirror.rosetta.db.pool.maxOpenConnections`      | 100                     | The maximum number of open database connections
 `hedera.mirror.rosetta.db.port`                         | 5432                    | The port used to connect to the database
 `hedera.mirror.rosetta.db.username`                     | mirror_rosetta          | The username the processor uses to connect to the database
+`hedera.mirror.rosetta.log.level`                       | info                    | The log level
 `hedera.mirror.rosetta.network`                         | DEMO                    | Which Hedera network to use. Can be either `DEMO`, `MAINNET`, `PREVIEWNET`, `TESTNET` or `OTHER`
 `hedera.mirror.rosetta.nodeVersion`                     | 0                       | The default canonical version of the node runtime
 `hedera.mirror.rosetta.online`                          | true                    | The default online mode of the Rosetta interface
