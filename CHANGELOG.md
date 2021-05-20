@@ -1,3 +1,13 @@
+# Hedera Mirror Node Changelog
+
+## 0.52.0 (2021-05-20)
+
+Goals:
+
+- Add one feature
+- Fix bugs
+- Improve documentations
+
 # Changelog
 
 Besides bug fixes, some features may have changed with this release which need your attention, these will be listed here.
