@@ -54,7 +54,7 @@ func TestValidateOperationsSum(t *testing.T) {
 	}
 
 	for _, tt := range testData {
-		result := ValidateOperationsSum(tt.operations)
+		result := ValidateTransferOperations(tt.operations)
 		assert.Equal(t, tt.expected, result)
 	}
 }

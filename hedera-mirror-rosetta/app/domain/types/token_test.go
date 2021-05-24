@@ -18,43 +18,45 @@
  * ‍
  */
 
-package mempool
+package types
 
 import (
 	"testing"
 
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errors"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/services/encoding"
+	"github.com/hashgraph/hedera-sdk-go/v2"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewMempoolAPIService(t *testing.T) {
-	mempoolService := NewMempoolAPIService()
-
-	assert.IsType(t, &MempoolAPIService{}, mempoolService)
+var token = &Token{
+	TokenId:  entityid.EntityId{EntityNum: 123, EncodedId: 123},
+	Decimals: 10,
+	Name:     "teebar",
+	Symbol:   "foobar",
 }
 
-func TestMempool(t *testing.T) {
-	// when:
-	res, e := NewMempoolAPIService().Mempool(nil, nil)
+func TestTokenToHederaTokenId(t *testing.T) {
+	// given
+	expected := &hedera.TokenID{Token: 123}
 
-	// then:
-	assert.Equal(
-		t,
-		&rTypes.MempoolResponse{
-			TransactionIdentifiers: []*rTypes.TransactionIdentifier{},
-		},
-		res,
-	)
+	// when
+	actual := token.ToHederaTokenId()
 
-	assert.Nil(t, e)
+	// then
+	assert.Equal(t, expected, actual)
 }
 
-func TestMempoolTransaction(t *testing.T) {
-	// when:
-	res, e := NewMempoolAPIService().MempoolTransaction(nil, nil)
+func TestTokenToRosettaCurrency(t *testing.T) {
+	// given
+	expected := &rTypes.Currency{
+		Symbol:   "0.0.123",
+		Decimals: 10,
+	}
 
-	// then:
-	assert.Equal(t, errors.ErrTransactionNotFound, e)
-	assert.Nil(t, res)
+	// when
+	actual := token.ToRosettaCurrency()
+
+	// then
+	assert.Equal(t, expected, actual)
 }

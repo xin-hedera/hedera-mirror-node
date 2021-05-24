@@ -32,11 +32,13 @@ import (
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/account"
 	addressBookEntry "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/addressbook/entry"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/block"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/token"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/transaction"
 	accountService "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/account"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/base"
 	blockService "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/block"
 	constructionService "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/construction"
+	handler2 "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/handler"
 	mempoolService "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/mempool"
 	networkService "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/services/network"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/config"
@@ -75,15 +77,17 @@ func newBlockchainOnlineRouter(
 	version *rTypes.Version,
 	dbClient *gorm.DB,
 ) (http.Handler, error) {
-	blockRepo := block.NewBlockRepository(dbClient)
-	transactionRepo := transaction.NewTransactionRepository(dbClient)
 	accountRepo := account.NewAccountRepository(dbClient)
 	addressBookEntryRepo := addressBookEntry.NewAddressBookEntryRepository(dbClient)
+	blockRepo := block.NewBlockRepository(dbClient)
+	tokenRepo := token.NewTokenRepository(dbClient)
+	transactionRepo := transaction.NewTransactionRepository(dbClient)
 
 	baseService := base.NewBaseService(blockRepo, transactionRepo)
 
 	networkAPIService := networkService.NewNetworkAPIService(baseService, addressBookEntryRepo, network, version)
 	networkAPIController := server.NewNetworkAPIController(networkAPIService, asserter)
+
 
 	blockAPIService := blockService.NewBlockAPIService(baseService)
 	blockAPIController := server.NewBlockAPIController(blockAPIService, asserter)
@@ -91,7 +95,8 @@ func newBlockchainOnlineRouter(
 	mempoolAPIService := mempoolService.NewMempoolAPIService()
 	mempoolAPIController := server.NewMempoolAPIController(mempoolAPIService, asserter)
 
-	constructionAPIService, err := constructionService.NewConstructionAPIService(network.Network, nodes)
+	transactionHandler := handler2.NewTransactionHandler(tokenRepo)
+	constructionAPIService, err := constructionService.NewConstructionAPIService(network.Network, nodes, transactionHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +122,7 @@ func newBlockchainOfflineRouter(
 	nodes types.NodeMap,
 	asserter *asserter.Asserter,
 ) (http.Handler, error) {
-	constructionAPIService, err := constructionService.NewConstructionAPIService(network, nodes)
+	constructionAPIService, err := constructionService.NewConstructionAPIService(network, nodes, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +134,7 @@ func newBlockchainOfflineRouter(
 func main() {
 	configLogger("info")
 
-	configuration, err := LoadConfig()
+	configuration, err := loadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %s", err)
 	}

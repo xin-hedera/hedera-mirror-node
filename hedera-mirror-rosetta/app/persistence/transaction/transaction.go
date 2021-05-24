@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/repositories"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errors"
 	dbTypes "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/common"
@@ -62,7 +63,7 @@ const (
 )
 
 type transaction struct {
-	ConsensusNS          int64  `gorm:"type:bigint;primary_key"`
+	ConsensusNS          int64  `gorm:"type:bigint;primaryKey"`
 	ChargedTxFee         int64  `gorm:"type:bigint"`
 	EntityID             int64  `gorm:"type:bigint"`
 	InitialBalance       int64  `gorm:"type:bigint"`
@@ -115,7 +116,7 @@ func (t *transaction) getHashString() string {
 }
 
 // TransactionRepository struct that has connection to the Database
-type TransactionRepository struct {
+type transactionRepository struct {
 	once     sync.Once
 	dbClient *gorm.DB
 	results  map[int]string
@@ -123,12 +124,12 @@ type TransactionRepository struct {
 }
 
 // NewTransactionRepository creates an instance of a TransactionRepository struct
-func NewTransactionRepository(dbClient *gorm.DB) *TransactionRepository {
-	return &TransactionRepository{dbClient: dbClient}
+func NewTransactionRepository(dbClient *gorm.DB) repositories.TransactionRepository {
+	return &transactionRepository{dbClient: dbClient}
 }
 
 // Types returns map of all transaction types
-func (tr *TransactionRepository) Types() (map[int]string, *rTypes.Error) {
+func (tr *transactionRepository) Types() (map[int]string, *rTypes.Error) {
 	if tr.types == nil {
 		err := tr.retrieveTransactionTypesAndResults()
 		if err != nil {
@@ -139,7 +140,7 @@ func (tr *TransactionRepository) Types() (map[int]string, *rTypes.Error) {
 }
 
 // Results returns map of all transaction results
-func (tr *TransactionRepository) Results() (map[int]string, *rTypes.Error) {
+func (tr *transactionRepository) Results() (map[int]string, *rTypes.Error) {
 	if tr.results == nil {
 		err := tr.retrieveTransactionTypesAndResults()
 		if err != nil {
@@ -150,7 +151,7 @@ func (tr *TransactionRepository) Results() (map[int]string, *rTypes.Error) {
 }
 
 // TypesAsArray returns all Transaction type names as an array
-func (tr *TransactionRepository) TypesAsArray() ([]string, *rTypes.Error) {
+func (tr *transactionRepository) TypesAsArray() ([]string, *rTypes.Error) {
 	transactionTypes, err := tr.Types()
 	if err != nil {
 		return nil, err
@@ -159,7 +160,7 @@ func (tr *TransactionRepository) TypesAsArray() ([]string, *rTypes.Error) {
 }
 
 // FindBetween retrieves all Transactions between the provided start and end timestamp
-func (tr *TransactionRepository) FindBetween(start int64, end int64) ([]*types.Transaction, *rTypes.Error) {
+func (tr *transactionRepository) FindBetween(start int64, end int64) ([]*types.Transaction, *rTypes.Error) {
 	if start > end {
 		return nil, errors.ErrStartMustNotBeAfterEnd
 	}
@@ -183,7 +184,7 @@ func (tr *TransactionRepository) FindBetween(start int64, end int64) ([]*types.T
 }
 
 // FindByHashInBlock retrieves a transaction by Hash
-func (tr *TransactionRepository) FindByHashInBlock(
+func (tr *transactionRepository) FindByHashInBlock(
 	hashStr string,
 	consensusStart int64,
 	consensusEnd int64,
@@ -213,36 +214,36 @@ func (tr *TransactionRepository) FindByHashInBlock(
 	return transaction, nil
 }
 
-func (tr *TransactionRepository) findCryptoTransfersAsc(timestamps []int64) []dbTypes.CryptoTransfer {
+func (tr *transactionRepository) findCryptoTransfersAsc(timestamps []int64) []dbTypes.CryptoTransfer {
 	var cryptoTransfers []dbTypes.CryptoTransfer
 	tr.findTransfersAsc(whereCryptoTransferConsensusTimestampInTimestampsAsc, timestamps, &cryptoTransfers)
 	return cryptoTransfers
 }
 
-func (tr *TransactionRepository) findNonFeeTransfersAsc(timestamps []int64) []dbTypes.NonFeeTransfer {
+func (tr *transactionRepository) findNonFeeTransfersAsc(timestamps []int64) []dbTypes.NonFeeTransfer {
 	var nonFeeTransfers []dbTypes.NonFeeTransfer
 	tr.findTransfersAsc(whereNonFeeTransferConsensusTimestampInTimestampsAsc, timestamps, &nonFeeTransfers)
 	return nonFeeTransfers
 }
 
-func (tr *TransactionRepository) findTransfersAsc(query string, timestamps []int64, out interface{}) {
+func (tr *transactionRepository) findTransfersAsc(query string, timestamps []int64, out interface{}) {
 	timestampsStr := intsToString(timestamps)
 	tr.dbClient.Raw(query, sql.Named("timestamps", timestampsStr)).Find(out)
 }
 
-func (tr *TransactionRepository) retrieveTransactionTypes() []transactionType {
+func (tr *transactionRepository) retrieveTransactionTypes() []transactionType {
 	var transactionTypes []transactionType
 	tr.dbClient.Raw(selectTransactionTypes).Find(&transactionTypes)
 	return transactionTypes
 }
 
-func (tr *TransactionRepository) retrieveTransactionResults() []transactionResult {
+func (tr *transactionRepository) retrieveTransactionResults() []transactionResult {
 	var tResults []transactionResult
 	tr.dbClient.Raw(selectTransactionResults).Find(&tResults)
 	return tResults
 }
 
-func (tr *TransactionRepository) constructTransaction(sameHashTransactions []transaction) (
+func (tr *transactionRepository) constructTransaction(sameHashTransactions []transaction) (
 	*types.Transaction,
 	*rTypes.Error,
 ) {
@@ -265,7 +266,7 @@ func (tr *TransactionRepository) constructTransaction(sameHashTransactions []tra
 	return tResult, nil
 }
 
-func (tr *TransactionRepository) constructOperations(
+func (tr *transactionRepository) constructOperations(
 	cryptoTransfers []dbTypes.CryptoTransfer,
 	nonFeeTransfers []dbTypes.NonFeeTransfer,
 	transactions map[int64]transaction,
@@ -285,7 +286,7 @@ func (tr *TransactionRepository) constructOperations(
 	return getOperations(nonFeeTransfers, adjustedCryptoTransfers, transactions, transactionResults, transactionTypes)
 }
 
-func (tr *TransactionRepository) retrieveTransactionTypesAndResults() *rTypes.Error {
+func (tr *transactionRepository) retrieveTransactionTypesAndResults() *rTypes.Error {
 	typeArray := tr.retrieveTransactionTypes()
 	resultArray := tr.retrieveTransactionResults()
 

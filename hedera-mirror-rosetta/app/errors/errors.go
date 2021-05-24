@@ -51,12 +51,21 @@ const (
 	TransactionSubmissionFailed    string = "Transaction submission failed"
 	TransactionNotFound            string = "Transaction not found"
 	TransactionInvalidType         string = "Transaction invalid type"
-	TransactionNotSigned           string = "Transaction not signed"
-	TransactionHashFailed          string = "Transaction hash failed"
-	TransactionFreezeFailed        string = "Transaction freeze failed"
-	InvalidArgument                string = "Invalid argument"
-	DatabaseError                  string = "Database error"
-	InternalServerError            string = "Internal Server Error"
+	TransactionNotSigned          string = "Transaction not signed"
+	TransactionHashFailed         string = "Transaction hash failed"
+	TransactionFreezeFailed       string = "Transaction freeze failed"
+	InvalidArgument               string = "Invalid argument"
+	DatabaseError                 string = "Database error"
+	InvalidOperationMetadata      string = "Invalid operation metadata"
+	OperationTypeUnsupported      string = "Operation type unsupported"
+	MultipleOperationsUnsupported string = "Multiple operations unsupported"
+	InvalidOperationType          string = "Invalid operation type"
+	NoSignature                   string = "No signature"
+	OperationsInvalid             string = "Require single operation"
+	InvalidToken                  string = "Invalid token"
+	TokenNotFound                 string = "Token not found"
+	TransactionInvalid            string = "Invalid transaction"
+	InternalServerError           string = "Internal Server Error"
 )
 
 var (
@@ -85,12 +94,21 @@ var (
 	ErrTransactionNotFound            = newError(TransactionNotFound, 122, true)
 	ErrEmptyOperations                = newError(EmptyOperations, 123, true)
 	ErrTransactionInvalidType         = newError(TransactionInvalidType, 124, false)
-	ErrTransactionNotSigned           = newError(TransactionNotSigned, 125, false)
-	ErrTransactionHashFailed          = newError(TransactionHashFailed, 126, false)
-	ErrTransactionFreezeFailed        = newError(TransactionFreezeFailed, 127, false)
-	ErrInvalidArgument                = newError(InvalidArgument, 128, false)
-	ErrDatabaseError                  = newError(DatabaseError, 129, true)
-	ErrInternalServerError            = newError(InternalServerError, 500, true)
+	ErrTransactionNotSigned          = newError(TransactionNotSigned, 125, false)
+	ErrTransactionHashFailed         = newError(TransactionHashFailed, 126, false)
+	ErrTransactionFreezeFailed       = newError(TransactionFreezeFailed, 127, false)
+	ErrInvalidArgument               = newError(InvalidArgument, 128, false)
+	ErrDatabaseError                 = newError(DatabaseError, 129, true)
+	ErrInvalidOperationMetadata      = newError(InvalidOperationMetadata, 130, false)
+	ErrOperationTypeUnsupported      = newError(OperationTypeUnsupported, 131, false)
+	ErrMultipleOperationsUnsupported = newError(MultipleOperationsUnsupported, 132, false)
+	ErrInvalidOperationType          = newError(InvalidOperationType, 133, false)
+	ErrNoSignature                   = newError(NoSignature, 134, false)
+	ErrOperationsInvalid             = newError(OperationsInvalid, 135, false)
+	ErrInvalidToken                  = newError(InvalidToken, 136, false)
+	ErrTokenNotFound                 = newError(TokenNotFound, 137, false)
+	ErrTransactionInvalid            = newError(TransactionInvalid, 138, false)
+	ErrInternalServerError           = newError(InternalServerError, 500, true)
 
 	Errors = make([]*types.Error, 0)
 )

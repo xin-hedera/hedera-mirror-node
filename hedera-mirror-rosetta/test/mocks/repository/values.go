@@ -18,14 +18,17 @@
  * ‍
  */
 
-package repositories
+package repository
 
 import (
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
 )
 
-// AccountRepository Interface that all AccountRepository structs must implement
-type AccountRepository interface {
-	RetrieveBalanceAtBlock(addressStr string, consensusEnd int64) ([]*types.Amount, *rTypes.Error)
-}
+var (
+	NilAmount *types.Amount
+	NilBlock *types.Block
+	NilEntries *types.AddressBookEntries
+	NilError *rTypes.Error
+	NilTransaction *types.Transaction
+)

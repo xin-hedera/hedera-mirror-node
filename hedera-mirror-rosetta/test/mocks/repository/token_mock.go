@@ -18,14 +18,19 @@
  * ‍
  */
 
-package repositories
+package repository
 
 import (
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
+	"github.com/stretchr/testify/mock"
 )
 
-// AccountRepository Interface that all AccountRepository structs must implement
-type AccountRepository interface {
-	RetrieveBalanceAtBlock(addressStr string, consensusEnd int64) ([]*types.Amount, *rTypes.Error)
+type MockTokenRepository struct {
+	mock.Mock
+}
+
+func (m *MockTokenRepository) Find(tokenIdStr string) (*types.Token, *rTypes.Error){
+	args := m.Called(tokenIdStr)
+	return args.Get(0).(*types.Token), args.Get(1).(*rTypes.Error)
 }

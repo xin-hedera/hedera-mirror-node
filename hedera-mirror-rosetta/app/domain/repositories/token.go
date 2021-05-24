@@ -25,7 +25,7 @@ import (
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
 )
 
-// AccountRepository Interface that all AccountRepository structs must implement
-type AccountRepository interface {
-	RetrieveBalanceAtBlock(addressStr string, consensusEnd int64) ([]*types.Amount, *rTypes.Error)
+// TokenRepository Interface that all TokenRepository structs must implement
+type TokenRepository interface {
+	Find(tokenIdStr string) (*types.Token, *rTypes.Error)
 }

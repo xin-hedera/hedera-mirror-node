@@ -22,8 +22,9 @@ package entityid
 
 import (
 	"fmt"
-	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/tools/parse"
 	"strings"
+
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/tools/parse"
 )
 
 const (
@@ -47,6 +48,11 @@ type EntityId struct {
 	ShardNum  int64
 	RealmNum  int64
 	EntityNum int64
+	EncodedId int64
+}
+
+func (e EntityId) String() string {
+	return fmt.Sprintf("%d.%d.%d", e.ShardNum, e.RealmNum, e.EntityNum)
 }
 
 // Encode - encodes the shard, realm and entity id into a Entity DB Id
@@ -71,6 +77,7 @@ func Decode(encodedID int64) (*EntityId, error) {
 		ShardNum:  encodedID >> (realmBits + numberBits),
 		RealmNum:  (encodedID >> numberBits) & realmMask,
 		EntityNum: encodedID & numberMask,
+		EncodedId: encodedID,
 	}, nil
 }
 
@@ -95,7 +102,7 @@ func FromString(entityId string) (*EntityId, error) {
 		return nil, errorEntityId
 	}
 
-	_, err = Encode(shardNum, realmNum, entityNum)
+	encodedId, err := Encode(shardNum, realmNum, entityNum)
 	if err != nil {
 		return nil, err
 	}
@@ -104,5 +111,6 @@ func FromString(entityId string) (*EntityId, error) {
 		ShardNum:  shardNum,
 		RealmNum:  realmNum,
 		EntityNum: entityNum,
+		EncodedId: encodedId,
 	}, nil
 }

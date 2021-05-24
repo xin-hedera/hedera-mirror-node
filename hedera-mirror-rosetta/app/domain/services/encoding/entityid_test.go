@@ -21,10 +21,22 @@
 package entityid
 
 import (
-	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func TestEntityIdString(t *testing.T) {
+	entityId := EntityId{
+		ShardNum:  0,
+		RealmNum:  0,
+		EntityNum: 7,
+		EncodedId: 7,
+	}
+
+	assert.Equal(t, "0.0.7", entityId.String())
+}
 
 func TestEntityIdEncoding(t *testing.T) {
 	var testData = []struct {
@@ -73,16 +85,19 @@ func TestEntityIdFromString(t *testing.T) {
 			ShardNum:  0,
 			RealmNum:  0,
 			EntityNum: 0,
+			EncodedId: 0,
 		}, "0.0.0"},
 		{&EntityId{
 			ShardNum:  0,
 			RealmNum:  0,
 			EntityNum: 10,
+			EncodedId: 10,
 		}, "0.0.10"},
 		{&EntityId{
 			ShardNum:  0,
 			RealmNum:  0,
 			EntityNum: 4294967295,
+			EncodedId: 4294967295,
 		}, "0.0.4294967295"},
 	}
 
@@ -120,31 +135,37 @@ func TestEntityIdDecoding(t *testing.T) {
 			ShardNum:  0,
 			RealmNum:  0,
 			EntityNum: 0,
+			EncodedId: 0,
 		}},
 		{10, &EntityId{
 			ShardNum:  0,
 			RealmNum:  0,
 			EntityNum: 10,
+			EncodedId: 10,
 		}},
 		{4294967295, &EntityId{
 			ShardNum:  0,
 			RealmNum:  0,
 			EntityNum: 4294967295,
+			EncodedId: 4294967295,
 		}},
 		{2814792716779530, &EntityId{
 			ShardNum:  10,
 			RealmNum:  10,
 			EntityNum: 10,
+			EncodedId: 2814792716779530,
 		}},
 		{9223372036854775807, &EntityId{
 			ShardNum:  32767,
 			RealmNum:  65535,
 			EntityNum: 4294967295,
+			EncodedId: 9223372036854775807,
 		}},
 		{9223090561878065152, &EntityId{
 			ShardNum:  32767,
 			RealmNum:  0,
 			EntityNum: 0,
+			EncodedId: 9223090561878065152,
 		}},
 	}
 
