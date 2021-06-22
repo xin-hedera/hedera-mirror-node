@@ -125,6 +125,8 @@ func SetupDb() DbResource {
 	log.Info("Create postgres container")
 	resource, dbParams := createPostgresDb(pool, network)
 
+	log.Infof("Created postgres with dbParams %+v", dbParams)
+
 	if err = pool.Retry(func() error {
 		var err error
 		db, err = sql.Open("postgres", dbParams.toDsn())
