@@ -191,6 +191,11 @@ func createPostgresDb(pool *dockertest.Pool, network *dockertest.Network) (*dock
 		log.Fatalf("Could not start resource: %s", err)
 	}
 
+	bindings := resource.Container.NetworkSettings.Ports[docker.Port("5432/tcp")]
+	for _, binding := range bindings {
+		log.Infof("binding - %s %s", binding.HostIP, binding.HostPort)
+	}
+
 	return resource, dbParams{
 		endpoint: resource.GetHostPort("5432/tcp"),
 		name:     dbName,
