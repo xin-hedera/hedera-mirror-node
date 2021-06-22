@@ -34,6 +34,10 @@ jobs:
         env:
           GOPATH: ~/go
 
+      - name: Show Docker Containers
+        if: always()
+        run: docker ps -a
+
       - name: Upload coverage report
         if: always()
         run: bash <(curl -s https://codecov.io/bash)
