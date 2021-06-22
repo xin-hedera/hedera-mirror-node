@@ -73,6 +73,7 @@ func (d DbResource) GetGormDb() *gorm.DB {
 }
 
 type dbParams struct {
+	endpoint string
 	name     string
 	username string
 	password string
@@ -80,8 +81,8 @@ type dbParams struct {
 }
 
 func (d dbParams) toDsn() string {
-	return fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", d.username, d.password,
-		d.port, d.name)
+	return fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", d.username, d.password,
+		d.endpoint, d.name)
 }
 
 func (d dbParams) toJdbcUrl(endpoint string) string {
@@ -129,6 +130,7 @@ func SetupDb() DbResource {
 
 	if err = pool.Retry(func() error {
 		var err error
+		log.Infof("trying to connec to %s", dbParams.toDsn())
 		db, err = sql.Open("postgres", dbParams.toDsn())
 		if err != nil {
 			log.Errorf("%s", err)
@@ -188,6 +190,7 @@ func createPostgresDb(pool *dockertest.Pool, network *dockertest.Network) (*dock
 	}
 
 	return resource, dbParams{
+		endpoint: resource.GetHostPort("5432/tcp"),
 		name:     dbName,
 		username: dbUsername,
 		password: dbPassword,
