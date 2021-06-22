@@ -134,7 +134,12 @@ func SetupDb() DbResource {
 			log.Errorf("%s", err)
 			return err
 		}
-		return db.Ping()
+
+		err = db.Ping()
+		if err != nil {
+			log.Errorf("db ping err: %s", err)
+		}
+		return err
 	}); err != nil {
 		log.Fatalf("Could not connect to docker: %s", err)
 	}
