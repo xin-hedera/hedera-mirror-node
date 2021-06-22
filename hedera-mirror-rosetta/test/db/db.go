@@ -116,7 +116,9 @@ func SetupDb() DbResource {
 
 	// create a dedicated network for the containers, so flyway can connect to db using hostname
 	log.Info("Create network for docker containers")
-	network, err := pool.CreateNetwork(randstr.Hex(8))
+	network, err := pool.CreateNetwork(randstr.Hex(8), func(config *docker.CreateNetworkOptions) {
+		config.EnableIPv6 = false
+	})
 	if err != nil {
 		log.Fatalf("Could not create docker network: %s", err)
 	}
