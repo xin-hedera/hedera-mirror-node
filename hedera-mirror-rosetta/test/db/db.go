@@ -77,7 +77,6 @@ type dbParams struct {
 	name     string
 	username string
 	password string
-	port     string
 }
 
 func (d dbParams) toDsn() string {
@@ -116,9 +115,7 @@ func SetupDb() DbResource {
 
 	// create a dedicated network for the containers, so flyway can connect to db using hostname
 	log.Info("Create network for docker containers")
-	network, err := pool.CreateNetwork(randstr.Hex(8), func(config *docker.CreateNetworkOptions) {
-		config.EnableIPv6 = false
-	})
+	network, err := pool.CreateNetwork(randstr.Hex(8))
 	if err != nil {
 		log.Fatalf("Could not create docker network: %s", err)
 	}
@@ -191,17 +188,11 @@ func createPostgresDb(pool *dockertest.Pool, network *dockertest.Network) (*dock
 		log.Fatalf("Could not start resource: %s", err)
 	}
 
-	bindings := resource.Container.NetworkSettings.Ports[docker.Port("5432/tcp")]
-	for _, binding := range bindings {
-		log.Infof("binding - %s %s", binding.HostIP, binding.HostPort)
-	}
-
 	return resource, dbParams{
-		endpoint: resource.GetHostPort("5432/tcp"),
+		endpoint: "0.0.0.0:" + resource.GetPort("5432/tcp"),
 		name:     dbName,
 		username: dbUsername,
 		password: dbPassword,
-		port:     resource.GetPort("5432/tcp"),
 	}
 }
 
