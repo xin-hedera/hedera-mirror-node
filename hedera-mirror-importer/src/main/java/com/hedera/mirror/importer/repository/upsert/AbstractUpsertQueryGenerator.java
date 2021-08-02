@@ -336,13 +336,15 @@ public abstract class AbstractUpsertQueryGenerator<T> implements UpsertQueryGene
     }
 
     private String getConflictClause(String action) {
-        return String.format(
-                " on conflict (%s) do %s",
-                getConflictIdColumns()
-                        .stream()
-                        .map(this::getFormattedColumnName)
-                        .collect(Collectors.joining(", ")),
-                action);
+        String conflictColumns = getConflictIdColumns()
+                .stream()
+                .map(this::getFormattedColumnName)
+                .collect(Collectors.joining(", "));
+        if (StringUtils.isNotEmpty(conflictColumns)) {
+            conflictColumns = " (" + conflictColumns + ")";
+        }
+
+        return " on conflict" + conflictColumns + " do " + action;
     }
 
     @Data

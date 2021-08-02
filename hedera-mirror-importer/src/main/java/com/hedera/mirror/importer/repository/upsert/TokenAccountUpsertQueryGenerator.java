@@ -41,8 +41,8 @@ public class TokenAccountUpsertQueryGenerator extends AbstractUpsertQueryGenerat
     private final String temporaryTableName = getFinalTableName() + "_temp";
     private final List<String> v1ConflictIdColumns = List.of(TokenAccountId_.TOKEN_ID, TokenAccountId_.ACCOUNT_ID);
     // createdTimestamp is needed for v2 schema compliance as it's used in index
-    private final List<String> v2ConflictIdColumns = List.of(TokenAccountId_.TOKEN_ID,
-            TokenAccountId_.ACCOUNT_ID, TokenAccount_.CREATED_TIMESTAMP);
+//    private final List<String> v2ConflictIdColumns = List.of(TokenAccountId_.TOKEN_ID,
+//            TokenAccountId_.ACCOUNT_ID, TokenAccount_.CREATED_TIMESTAMP);
     private final Set<String> nonUpdatableColumns = Set.of(TokenAccountId_.ACCOUNT_ID,
             TokenAccount_.CREATED_TIMESTAMP, TokenAccount_.ID, TokenAccountId_.TOKEN_ID);
 
