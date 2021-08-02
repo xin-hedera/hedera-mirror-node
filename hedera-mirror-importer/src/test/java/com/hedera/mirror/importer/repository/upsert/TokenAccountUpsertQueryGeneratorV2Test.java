@@ -36,6 +36,6 @@ class TokenAccountUpsertQueryGeneratorV2Test extends TokenAccountUpsertQueryGene
                 ".kyc_key is null then 0 else 2 end kyc_status, " +
                 "token_account_temp.modified_timestamp, token_account_temp.token_id from token_account_temp join " +
                 "token on token_account_temp.token_id = token.token_id where token_account_temp.created_timestamp is " +
-                "not null on conflict (token_id, account_id, created_timestamp) do nothing";
+                "not null on conflict do nothing";
     }
 }
