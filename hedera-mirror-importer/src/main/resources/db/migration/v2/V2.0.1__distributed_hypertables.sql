@@ -37,19 +37,19 @@ select create_distributed_hypertable('crypto_transfer', 'consensus_timestamp',
     create_default_indexes => false, if_not_exists => true);
 
 -- custom_fee
-select create_distributed_hypertable('custom_fee', 'created_timestamp', partitioning_column => 'consensus_timestamp',
+select create_distributed_hypertable('custom_fee', 'created_timestamp',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- event_file
-select create_distributed_hypertable('event_file', 'consensus_end', partitioning_column => 'consensus_end',
+select create_distributed_hypertable('event_file', 'consensus_end',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- file_data
-select create_distributed_hypertable('file_data', 'consensus_timestamp', partitioning_column => 'consensus_timestamp',
+select create_distributed_hypertable('file_data', 'consensus_timestamp',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- live_hash
-select create_distributed_hypertable('live_hash', 'consensus_timestamp', partitioning_column => 'consensus_timestamp',
+select create_distributed_hypertable('live_hash', 'consensus_timestamp',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false,
     if_not_exists => true);
 
@@ -68,11 +68,11 @@ select create_distributed_hypertable('non_fee_transfer', 'consensus_timestamp',
     create_default_indexes => false, if_not_exists => true);
 
 -- record_file
-select create_distributed_hypertable('record_file', 'consensus_end', partitioning_column => 'consensus_end',
+select create_distributed_hypertable('record_file', 'consensus_end',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- schedule
-select create_distributed_hypertable('schedule', 'consensus_timestamp', partitioning_column => 'consensus_timestamp',
+select create_distributed_hypertable('schedule', 'consensus_timestamp',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- entity
@@ -90,7 +90,7 @@ select create_hypertable('token', 'created_timestamp', chunk_time_interval => ${
     create_default_indexes => false, if_not_exists => true);
 
 -- token_account
-select create_distributed_hypertable('token_account', 'created_timestamp', partitioning_column => 'created_timestamp',
+select create_distributed_hypertable('token_account', 'created_timestamp',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- token_balance
@@ -109,7 +109,7 @@ select create_distributed_hypertable('topic_message', 'consensus_timestamp',
     create_default_indexes => false, if_not_exists => true);
 
 -- transaction
-select create_distributed_hypertable('transaction', 'consensus_ns', partitioning_column => 'consensus_ns',
+select create_distributed_hypertable('transaction', 'consensus_ns',
     chunk_time_interval => ${chunkTimeInterval}, create_default_indexes => false, if_not_exists => true);
 
 -- transaction_signature
