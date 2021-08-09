@@ -46,6 +46,6 @@ class TokenUpsertQueryGeneratorV2Test extends TokenUpsertQueryGeneratorTest {
                 "token_temp.treasury_account_id, token_temp.type, token_temp.wipe_key, case when " +
                 "token_temp.wipe_key_ed25519_hex = '<uuid>' then '' else coalesce(token_temp.wipe_key_ed25519_hex, " +
                 "null) end from token_temp where token_temp.created_timestamp is not null " +
-                "on conflict (token_id, created_timestamp) do nothing";
+                "on conflict do nothing";
     }
 }

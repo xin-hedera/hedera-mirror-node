@@ -20,7 +20,6 @@
 
 'use strict';
 
-const config = require('./config');
 const constants = require('./constants');
 const EntityId = require('./entityId');
 const utils = require('./utils');
@@ -78,24 +77,42 @@ const getBalances = async (req, res) => {
   // Parse the filter parameters for credit/debit, account-numbers, timestamp and pagination
   const [accountQuery, accountParams] = utils.parseAccountIdQueryParam(req.query, 'ab.account_id');
   // transform the timestamp=xxxx or timestamp=eq:xxxx query in url to 'timestamp <= xxxx' SQL query condition
-  const [tsQuery, tsParams] = utils.parseTimestampQueryParam(req.query, 'ab.consensus_timestamp', {
+  const [tsQuery, tsParams] = utils.parseTimestampQueryParam(req.query, 'abf.consensus_timestamp', {
     [utils.opsMap.eq]: utils.opsMap.lte,
   });
   const [balanceQuery, balanceParams] = utils.parseBalanceQueryParam(req.query, 'ab.balance');
   const [pubKeyQuery, pubKeyParams] = utils.parsePublicKeyQueryParam(req.query, 'e.public_key');
   const {query, params, order, limit} = utils.parseLimitAndOrderParams(req, constants.orderFilterValues.DESC);
 
-  // Use the inner query to find the latest snapshot timestamp from the balance history table
-  const innerQuery = `
-      SELECT
-        ab.consensus_timestamp
-      FROM account_balance ab
-      WHERE ${tsQuery === '' ? '1=1' : tsQuery}
-      ORDER BY ab.consensus_timestamp DESC
-      LIMIT 1`;
+  // find the last timestamp in the range
+  const timestampQuery = `
+    select consensus_timestamp
+    from account_balance_file abf
+    ${tsQuery && 'where ' + tsQuery}
+    order by consensus_timestamp desc
+    limit 1`;
+
+  if (logger.isTraceEnabled()) {
+    logger.trace(`getBalance timestamp query: ${timestampQuery}`);
+  }
+
+  const {rows} = await pool.queryQuietly(utils.convertMySqlStyleQueryToPostgres(timestampQuery), ...tsParams);
+  if (rows.length === 0) {
+    return;
+  }
+  const timestamp = rows[0].consensus_timestamp;
+
+  // // Use the inner query to find the latest snapshot timestamp from the balance history table
+  // const innerQuery = `
+  //     SELECT
+  //       ab.consensus_timestamp
+  //     FROM account_balance ab
+  //     WHERE ${tsQuery === '' ? '1=1' : tsQuery}
+  //     ORDER BY ab.consensus_timestamp DESC
+  //     LIMIT 1`;
 
   const whereClause = `
-      WHERE ${[`ab.consensus_timestamp = (${innerQuery})`, accountQuery, pubKeyQuery, balanceQuery]
+      WHERE ${['ab.consensus_timestamp = ?', accountQuery, pubKeyQuery, balanceQuery]
         .filter((q) => q !== '')
         .join(' AND ')}`;
 
@@ -114,23 +131,25 @@ const getBalances = async (req, res) => {
         ab.consensus_timestamp,
         ab.account_id,
         ab.balance,
-        json_agg(
-          json_build_object(
-            'token_id', tb.token_id::text,
-            'balance', tb.balance
-          ) order by tb.token_id ${order}
-        ) FILTER (WHERE tb.token_id IS NOT NULL) AS token_balances
+        (select
+          json_agg(json_build_object(
+          'token_id', tb.token_id::text,
+          'balance', tb.balance
+          ) order by tb.token_id ${order})
+         from token_balance tb
+         where tb.consensus_timestamp = ? and tb.account_id = ab.account_id
+        ) AS token_balances
       FROM account_balance ab
-      LEFT JOIN token_balance tb
-        ON ab.consensus_timestamp = tb.consensus_timestamp
-          AND ab.account_id = tb.account_id
       ${joinEntityClause}
       ${whereClause}
-      GROUP BY ab.consensus_timestamp, ab.account_id
       ORDER BY ab.account_id ${order}
       ${query}`;
 
-  const sqlParams = tsParams.concat(accountParams).concat(pubKeyParams).concat(balanceParams).concat(params);
+  const sqlParams = [timestamp, timestamp]
+    .concat(accountParams)
+    .concat(pubKeyParams)
+    .concat(balanceParams)
+    .concat(params);
   const pgSqlQuery = utils.convertMySqlStyleQueryToPostgres(sqlQuery);
 
   if (logger.isTraceEnabled()) {

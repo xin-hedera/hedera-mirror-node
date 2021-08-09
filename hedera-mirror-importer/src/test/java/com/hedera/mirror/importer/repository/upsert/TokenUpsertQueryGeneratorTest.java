@@ -57,7 +57,7 @@ class TokenUpsertQueryGeneratorTest extends AbstractUpsertQueryGeneratorTest {
                 "then '' else coalesce(token_temp.symbol, '') end, token_temp.token_id, token_temp.total_supply, " +
                 "token_temp.treasury_account_id, token_temp.type, token_temp.wipe_key, case when " +
                 "token_temp.wipe_key_ed25519_hex = '<uuid>' then '' else coalesce(token_temp.wipe_key_ed25519_hex, " +
-                "null) end from token_temp where token_temp.created_timestamp is not null on conflict (token_id) do " +
+                "null) end from token_temp where token_temp.created_timestamp is not null on conflict do " +
                 "nothing";
     }
 

@@ -87,7 +87,7 @@ spring:
       autovacuumVacuumInsertThresholdCryptoTransfer: 300000
       autovacuumVacuumInsertThresholdTokenTransfer: 2000
       autovacuumVacuumInsertThresholdTransaction: 100000
-      chunkIdInterval: 100000
+      chunkIdInterval: 1000000
       chunkTimeInterval: 86400000000000
       compressionAge: 604800000000000
       db-name: ${hedera.mirror.importer.db.name}

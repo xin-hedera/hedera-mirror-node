@@ -57,19 +57,18 @@ const processRow = (row) => {
  * @param limitAndOrderQuery - optional limit and order query
  * @return {{query: string, params}}
  */
-const getAccountQuery = (
+const getAccountQuery = async (
   entityAccountQuery,
   balancesAccountQuery,
   balanceQuery = {query: '', params: []},
   pubKeyQuery = {query: '', params: []},
   limitAndOrderQuery = {query: '', params: [], order: ''}
 ) => {
+  const {rows} = await pool.queryQuietly('select max(consensus_timestamp) as timestamp from account_balance_file');
+  const latestTimestamp = rows.length !== 0 ? rows[0].timestamp : 0;
+
   const entityWhereFilter = ['type < 3', entityAccountQuery.query, pubKeyQuery.query].filter((x) => !!x).join(' and ');
-  const balanceWhereFilter = [
-    'ab.consensus_timestamp = (select max(consensus_timestamp) as time_stamp_max from account_balance)',
-    balancesAccountQuery.query,
-    balanceQuery.query,
-  ]
+  const balanceWhereFilter = ['ab.consensus_timestamp = ?', balancesAccountQuery.query, balanceQuery.query]
     .filter((x) => !!x)
     .join(' and ');
   const {query: limitQuery, params: limitParams, order} = limitAndOrderQuery;
@@ -100,7 +99,7 @@ const getAccountQuery = (
            ) order by token_id ${order || ''}
          )
          from token_balance
-         where account_id = ab.account_id and consensus_timestamp = ab.consensus_timestamp
+         where account_id = ab.account_id and consensus_timestamp = ?
        ) token_balances
     from (
       select *
@@ -119,7 +118,8 @@ const getAccountQuery = (
     order by coalesce(ab.account_id, e.id) ${order || ''}
     ${limitQuery || ''}`;
 
-  const params = balancesAccountQuery.params
+  const params = [latestTimestamp, latestTimestamp]
+    .concat(balancesAccountQuery.params)
     .concat(balanceQuery.params)
     .concat(limitParams)
     .concat(entityAccountQuery.params)
@@ -155,7 +155,7 @@ const getAccounts = async (req, res) => {
   const pubKeyQuery = toQueryObject(utils.parsePublicKeyQueryParam(req.query, 'e.public_key'));
   const limitAndOrderQuery = utils.parseLimitAndOrderParams(req, constants.orderFilterValues.ASC);
 
-  const {query, params} = getAccountQuery(
+  const {query, params} = await getAccountQuery(
     entityAccountQuery,
     balancesAccountQuery,
     balanceQuery,
@@ -223,7 +223,7 @@ const getOneAccount = async (req, res) => {
   };
 
   const accountIdParams = [accountId];
-  const {query: entityQuery, params: entityParams} = getAccountQuery(
+  const {query: entityQuery, params: entityParams} = await getAccountQuery(
     {query: 'e.id = ?', params: accountIdParams},
     {query: 'ab.account_id = ?', params: accountIdParams}
   );

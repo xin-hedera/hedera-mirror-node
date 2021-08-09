@@ -519,8 +519,22 @@ const getOneTransaction = async (req, res) => {
 
   const transactionId = TransactionId.fromString(req.params.transactionId);
   const scheduledQuery = getScheduledQuery(req.query);
-  const sqlParams = [transactionId.getEntityId().getEncodedId(), transactionId.getValidStartNs()];
-  const whereClause = buildWhereClause('t.payer_account_id = ?', 't.valid_start_ns = ?', scheduledQuery);
+  const validStartNs = transactionId.getValidStartNs();
+  // TODO: use a configurable duration which should be at least the network's transaction valid duration
+  const maxConsensusTimestamp = BigInt(validStartNs) + 300n * 1_000_000_000n;
+  const sqlParams = [
+    transactionId.getEntityId().getEncodedId(),
+    validStartNs,
+    validStartNs,
+    maxConsensusTimestamp.toString(),
+  ];
+  const whereClause = buildWhereClause(
+    't.payer_account_id = ?',
+    't.valid_start_ns = ?',
+    't.consensus_ns >= ?',
+    't.consensus_ns <= ?',
+    scheduledQuery
+  );
   const includeExtraInfo = true;
 
   const sqlQuery = `

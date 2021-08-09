@@ -84,7 +84,7 @@ alter table non_fee_transfer
 alter table record_file
     set (timescaledb.compress, timescaledb.compress_segmentby = 'node_account_id');
 
--- schedule skipped as update (executed_timestamp) on compressed chunk is not allowed
+-- schedule skipped as not a hyper table
 
 -- entity skipped as update on compressed chunk is not allowed
 

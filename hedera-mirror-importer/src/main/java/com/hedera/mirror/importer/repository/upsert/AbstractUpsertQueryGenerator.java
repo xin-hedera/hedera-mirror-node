@@ -41,6 +41,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.CollectionUtils;
 
@@ -222,7 +223,15 @@ public abstract class AbstractUpsertQueryGenerator<T> implements UpsertQueryGene
     }
 
     private String getDoNothingConflictClause() {
-        return getConflictClause("nothing");
+        String conflictColumns = getConflictIdColumns()
+                .stream()
+                .map(this::getFormattedColumnName)
+                .collect(Collectors.joining(", "));
+        if (Strings.isNotEmpty(conflictColumns)) {
+            conflictColumns = " (" + conflictColumns + ")";
+        }
+
+        return " on conflict" + conflictColumns + " do nothing";
     }
 
     private Set<Field> getAttributes() {
@@ -333,16 +342,6 @@ public abstract class AbstractUpsertQueryGenerator<T> implements UpsertQueryGene
         // sort and add update statements to string builder
         updateQueryBuilder.append(StringUtils.join(updateQueries, ", "));
         return updateQueryBuilder.toString();
-    }
-
-    private String getConflictClause(String action) {
-        return String.format(
-                " on conflict (%s) do %s",
-                getConflictIdColumns()
-                        .stream()
-                        .map(this::getFormattedColumnName)
-                        .collect(Collectors.joining(", ")),
-                action);
     }
 
     @Data

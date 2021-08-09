@@ -223,12 +223,12 @@ comment on table record_file is 'Network record file stream entries';
 -- schedule
 create table if not exists schedule
 (
-    consensus_timestamp bigint primary key not null,
-    creator_account_id  bigint             not null,
-    executed_timestamp  bigint             null,
-    payer_account_id    bigint             not null,
-    schedule_id         bigint             not null,
-    transaction_body    bytea              not null
+    consensus_timestamp bigint not null,
+    creator_account_id  bigint not null,
+    executed_timestamp  bigint null,
+    payer_account_id    bigint not null,
+    schedule_id         bigint not null,
+    transaction_body    bytea  not null
 );
 comment on table schedule is 'Schedule entity entries';
 
