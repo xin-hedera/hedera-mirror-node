@@ -1,6 +1,6 @@
--------------------
--- Insert values into reference tables
--------------------
+/*
+ * Insert values into reference tables
+ */
 
 -- t_entity_types
 insert into t_entity_types (id, name)

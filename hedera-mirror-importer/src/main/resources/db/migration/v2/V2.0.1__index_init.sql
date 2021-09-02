@@ -1,6 +1,6 @@
--------------------
--- Add constraints and indexes to tables
--------------------
+/*
+ Add constraints and indexes to tables
+ */
 
 -- assessed_custom_fee
 create index if not exists assessed_custom_fee__consensus_timestamp
@@ -38,9 +38,7 @@ create index if not exists contract_result__consensus
 create index if not exists crypto_transfer__consensus_timestamp
     on crypto_transfer (consensus_timestamp);
 create index if not exists crypto_transfer__entity_id_consensus_timestamp
-    on crypto_transfer (entity_id, consensus_timestamp)
-    where entity_id != 98;
--- id corresponding to treasury address 0.0.98
+    on crypto_transfer (entity_id, consensus_timestamp);
 
 -- custom_fee
 create index if not exists custom_fee__token_timestamp
@@ -50,16 +48,22 @@ create index if not exists custom_fee__token_timestamp
 alter table entity
     add primary key (id);
 -- Enforce lowercase hex representation by constraint rather than making indexes on lower(ed25519).
+/*
+ TODO: WARNING: DB: ADD CONSTRAINT CHECK is not supported (SQL State: HY000 - Error Code: 8231) for TiDB
+ */
 alter table entity
     add constraint c__entity__lower_ed25519
-        check (public_key = lower(public_key));
+        check (public_key_hex = lower(public_key_hex));
 create index if not exists entity__id_type
     on entity (id, type);
+/* TODO: mysql doesn't support index on BLOB/TEXT column. Try to figure out a reasonable size limit for
+   public_key_hex and change it to varchar(limit)
 create index if not exists entity__public_key
-    on entity (public_key) where public_key is not null;
+    on entity (public_key_hex);
+ */
 create unique index if not exists entity__shard_realm_num
-    on entity (shard, realm, num, id);
--- have to add id when creating unique indexes due to partitioning
+    on entity (shard, realm, num);
+-- have to add id when creating unique indexes due to partitioning, TODO: remove it
 
 -- event_file
 alter table event_file
@@ -91,9 +95,9 @@ create index if not exists non_fee_transfer__consensus_timestamp
 alter table record_file
     add primary key (consensus_end);
 create unique index if not exists record_file__index
-    on record_file (index, consensus_end); -- have to add consensus_end due to partitioning
+    on record_file (file_index);
 create unique index if not exists record_file__hash
-    on record_file (hash, consensus_end); -- have to add consensus_end due to partitioning
+    on record_file (hash);
 create index if not exists record_file__prev_hash
     on record_file (prev_hash);
 
@@ -128,9 +132,7 @@ create unique index if not exists token__id_timestamp
 
 -- token_account
 alter table token_account
-    add primary key (created_timestamp, token_id);
-create unique index if not exists token_account__token_account_timestamp
-    on token_account (token_id, account_id, created_timestamp);
+    add primary key (token_id, account_id);
 
 -- token_balance
 alter table token_balance
@@ -143,16 +145,15 @@ create index if not exists token_transfer__account_timestamp
     on token_transfer (account_id, consensus_timestamp desc);
 
 -- topic_message
-alter table if exists topic_message
+alter table topic_message
     add primary key (consensus_timestamp);
 create index if not exists topic_message__realm_num_timestamp
     on topic_message (realm_num, topic_num, consensus_timestamp);
 create unique index if not exists topic_message__topic_num_realm_num_seqnum
-    on topic_message (realm_num, topic_num, sequence_number, consensus_timestamp);
--- have to add consensus_timestamp when creating unique indexes due to partitioning
+    on topic_message (realm_num, topic_num, sequence_number);
 
 -- transaction
-alter table if exists transaction
+alter table transaction
     add primary key (consensus_ns);
 create index if not exists transaction__transaction_id
     on transaction (valid_start_ns, payer_account_id);
@@ -165,6 +166,9 @@ create index if not exists transaction_type
 create index if not exists transaction_signature__entity_id
     on transaction_signature (entity_id desc, consensus_timestamp desc);
 
+/* TODO: mysql doesn't support index on BLOB/TEXT column. Try to figure out a reasonable size limit for
+   public_key_hex and change it to varchar(limit)
 create unique index if not exists transaction_signature__timestamp_public_key_prefix
     on transaction_signature (consensus_timestamp desc, public_key_prefix);
+ */
 
