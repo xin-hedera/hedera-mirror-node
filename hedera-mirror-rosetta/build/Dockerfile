@@ -7,7 +7,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # GIT_REF can be a branch, a commit SHA, or a tag
 ARG GIT_REF=main
 RUN apt-get update && apt-get install -y gcc git openjdk-11-jdk-headless
-RUN git clone https://github.com/xin-hedera/hedera-mirror-node && cd hedera-mirror-node && git checkout ${GIT_REF}
+RUN git clone https://github.com/hashgraph/hedera-mirror-node && cd hedera-mirror-node && git checkout ${GIT_REF}
 WORKDIR /hedera-mirror-node
 RUN ./mvnw --batch-mode --no-transfer-progress --show-version clean package -Dmaven.test.skip \
     -pl hedera-mirror-importer,hedera-mirror-rosetta
