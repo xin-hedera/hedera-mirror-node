@@ -7,7 +7,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # GIT_REF can be a branch, a commit SHA, or a tag
 ARG GIT_REF=main
 RUN apt-get update && apt-get install -y gcc git openjdk-11-jdk-headless
-RUN git clone https://github.com/hashgraph/hedera-mirror-node && cd hedera-mirror-node && git checkout ${GIT_REF}
+RUN git clone https://github.com/xin-hedera/hedera-mirror-node && cd hedera-mirror-node && git checkout ${GIT_REF}
 WORKDIR /hedera-mirror-node
 RUN ./mvnw --batch-mode --no-transfer-progress --show-version clean package -Dmaven.test.skip \
     -pl hedera-mirror-importer,hedera-mirror-rosetta
@@ -46,8 +46,7 @@ ENV PGCONF="/etc/postgresql/${PG_VERSION}/main"
 ENV PGDATA="/var/lib/postgresql/${PG_VERSION}/main"
 
 USER postgres
-RUN cp /app/build/pg_hba.conf ${PGCONF}/
-RUN echo "listen_addresses = '*'\nmax_wal_size = 8GB\nwork_mem = 256MB" >> "${PGCONF}/postgresql.conf"
+RUN cp /app/build/pg_hba.conf ${PGCONF}/ && cp /app/build/postgresql.conf ${PGCONF}/conf.d
 # Init db script
 RUN /etc/init.d/postgresql start && /app/scripts/init.sh && /etc/init.d/postgresql stop
 
