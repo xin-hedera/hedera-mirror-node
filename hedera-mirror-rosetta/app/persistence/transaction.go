@@ -121,7 +121,7 @@ type transaction struct {
 	ConsensusTimestamp int64
 	EntityId           *domain.EntityId
 	Hash               []byte
-	PayerAccountId     int64
+	PayerAccountId     domain.EntityId
 	Result             int16
 	Type               int16
 	CryptoTransfers    string
@@ -342,6 +342,26 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 		transactionResult := types.TransactionResults[int32(transaction.Result)]
 		transactionType := types.TransactionTypes[int32(transaction.Type)]
 
+		if transactionType == types.OperationTypeCryptoTransfer && transactionResult != success {
+			// only keep the fees (paid from the payer to the node and the treasury), then add a transfer from
+			// the payer for the fee payment
+			// note nonFeeTransfers should be empty when the transaction failed
+			feeTransfers := make([]hbarTransfer, 0)
+			var amount int64
+			for _, cryptoTransfer := range cryptoTransfers {
+				accountId := cryptoTransfer.AccountId.EncodedId
+				// node's account id or treasury
+				if (accountId >= 3 && accountId <= 26) || accountId == 98 {
+					feeTransfers = append(feeTransfers, cryptoTransfer)
+					amount += cryptoTransfer.Amount
+				}
+			}
+			cryptoTransfers = append(feeTransfers, hbarTransfer{
+				AccountId: transaction.PayerAccountId,
+				Amount:    -amount,
+			})
+		}
+
 		nonFeeTransferMap := aggregateNonFeeTransfers(nonFeeTransfers)
 		adjustedCryptoTransfers := adjustCryptoTransfers(cryptoTransfers, nonFeeTransferMap)
 
@@ -360,7 +380,7 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 			operations = append(operations, operation)
 		}
 
-		if transaction.Result == int16(transactionResultSuccess) {
+		if transactionResult == success {
 			tResult.EntityId = transaction.EntityId
 		}
 	}
@@ -515,7 +535,7 @@ func getTokenOperation(
 	transactionResult string,
 	transactionType string,
 ) (*types.Operation, *rTypes.Error) {
-	payerId, err := constructAccount(transaction.PayerAccountId)
+	payerId, err := constructAccount(transaction.PayerAccountId.EncodedId)
 	if err != nil {
 		return nil, err
 	}

@@ -45,7 +45,29 @@ const (
                                   consensus_timestamp > @start and
                                   consensus_timestamp <= @end and
                                   entity_id = @account_id
-                              ), 0) as value,
+                              ), 0) - (
+                                with transfer as (
+                                  select ct.consensus_timestamp, t.payer_account_id, sum(amount) as amount
+                                  from crypto_transfer ct
+                                  join transaction t
+                                  on t.consensus_timestamp = ct.consensus_timestamp
+                                  where t.type = 14 and t.result <> 22 and ct.consensus_timestamp > @start
+                                    and ct.consensus_timestamp <= @end and ct.entity_id = @account_id
+                                  group by ct.consensus_timestamp, t.payer_account_id
+                                ), fee as (
+                                  select t.consensus_timestamp, sum(ct.amount) as fee
+                                  from transfer t
+                                  join crypto_transfer ct
+                                  on ct.consensus_timestamp = t.consensus_timestamp
+                                  where t.payer_account_id = @account_id and
+                                    ((ct.entity_id >= 3 and ct.entity_id <= 26) or ct.entity_id = 98)
+                                  group by t.consensus_timestamp
+                                )
+                                select coalesce(sum(t.amount + coalesce(f.fee, 0)), 0)
+                                from transfer t
+                                left join fee f
+                                  on t.consensus_timestamp = f.consensus_timestamp
+                              ) as value,
                               coalesce((
                                 select json_agg(change)
                                 from (
@@ -299,7 +321,8 @@ func (ar *accountRepository) getBalanceChange(ctx context.Context, accountId, co
 		log.Errorf(
 			databaseErrorFormat,
 			hErrors.ErrDatabaseError.Message,
-			fmt.Sprintf("%v looking for account %d's balance change in [%d, %d]", err, accountId, consensusStart, consensusEnd),
+			fmt.Sprintf("%v looking for account %d's balance change in [%d, %d]", err, accountId, consensusStart,
+				consensusEnd),
 		)
 		return 0, nil, hErrors.ErrDatabaseError
 	}
