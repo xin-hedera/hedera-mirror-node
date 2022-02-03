@@ -268,7 +268,8 @@ func (ar *accountRepository) getLatestBalanceSnapshot(ctx context.Context, accou
 	db, cancel := ar.dbClient.GetDbWithContext(ctx)
 	defer cancel()
 
-	// gets the most recent balance at or before timestamp
+	// gets the most recent balance at or before timestamp, geneisis for mainnet is 1568412000000081000
+	timestamp = 1568412000000081001
 	cb := &combinedAccountBalance{}
 	if err := db.Raw(
 		latestBalanceBeforeConsensus,
