@@ -30,6 +30,7 @@ import (
 
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errata"
 	hErrors "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errors"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/interfaces"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/domain"
@@ -103,6 +104,11 @@ const (
                                     select
                                       abm.max consensus_timestamp,
                                       coalesce(ab.balance, 0) balance,
+                                      (select coalesce(sum(amount),0)
+                                       from crypto_transfer
+                                       where entity_id = @account_id and
+                                          consensus_timestamp = abm.max
+                                      ) as missing_amount,
                                       coalesce((
                                         select json_agg(json_build_object(
                                           'decimals', t.decimals,
@@ -142,6 +148,7 @@ const (
 type combinedAccountBalance struct {
 	ConsensusTimestamp int64
 	Balance            int64
+	MissingAmount      int64
 	TokenBalances      string
 }
 
@@ -294,6 +301,12 @@ func (ar *accountRepository) getLatestBalanceSnapshot(ctx context.Context, accou
 
 	if cb.ConsensusTimestamp == 0 {
 		return 0, nil, nil, hErrors.ErrNodeIsStarting
+	}
+
+	if cb.MissingAmount != 0 && errata.IsAccountBalanceFileSkewed(cb.ConsensusTimestamp) {
+		// adjust the balance by the missing amount if it's not zero and the account balance file is skewed accoroding
+		// to the errata
+		cb.Balance += cb.MissingAmount
 	}
 
 	hbarAmount := types.HbarAmount{Value: cb.Balance}
