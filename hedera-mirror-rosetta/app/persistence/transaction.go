@@ -332,27 +332,27 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 
 	for _, transaction := range sameHashTransactions {
 		cryptoTransfers := make([]hbarTransfer, 0)
-		if err := json.Unmarshal([]byte(transaction.CryptoTransfers), &cryptoTransfers); err != nil {
+		if err := safeJsonUnmarshal(transaction.CryptoTransfers, &cryptoTransfers); err != nil {
 			return nil, hErrors.ErrInternalServerError
 		}
 
 		nonFeeTransfers := make([]hbarTransfer, 0)
-		if err := json.Unmarshal([]byte(transaction.NonFeeTransfers), &nonFeeTransfers); err != nil {
+		if err := safeJsonUnmarshal(transaction.NonFeeTransfers, &nonFeeTransfers); err != nil {
 			return nil, hErrors.ErrInternalServerError
 		}
 
 		tokenTransfers := make([]tokenTransfer, 0)
-		if err := json.Unmarshal([]byte(transaction.TokenTransfers), &tokenTransfers); err != nil {
+		if err := safeJsonUnmarshal(transaction.TokenTransfers, &tokenTransfers); err != nil {
 			return nil, hErrors.ErrInternalServerError
 		}
 
 		nftTransfers := make([]domain.NftTransfer, 0)
-		if err := json.Unmarshal([]byte(transaction.NftTransfers), &nftTransfers); err != nil {
+		if err := safeJsonUnmarshal(transaction.NftTransfers, &nftTransfers); err != nil {
 			return nil, hErrors.ErrInternalServerError
 		}
 
 		token := domain.Token{}
-		if err := json.Unmarshal([]byte(transaction.Token), &token); err != nil {
+		if err := safeJsonUnmarshal(transaction.Token, &token); err != nil {
 			return nil, hErrors.ErrInternalServerError
 		}
 
@@ -494,7 +494,14 @@ func addMissingTransaction(
 			continue
 		}
 
-		cryptoTransfers, err := json.Marshal(missingTransaction.CryptoTransfers)
+		hbarTransfers := make([]hbarTransfer, 0, len(missingTransaction.CryptoTransfers))
+		for _, cryptoTransfer := range missingTransaction.CryptoTransfers {
+			hbarTransfers = append(hbarTransfers, hbarTransfer{
+				AccountId: cryptoTransfer.EntityId,
+				Amount:    cryptoTransfer.Amount,
+			})
+		}
+		serializedTransfers, err := json.Marshal(hbarTransfers)
 		if err != nil {
 			return nil, hErrors.ErrInternalServerError
 		}
@@ -504,7 +511,7 @@ func addMissingTransaction(
 			PayerAccountId:     missingTransaction.PayerAccountId,
 			Result:             missingTransaction.Result,
 			Type:               missingTransaction.Type,
-			CryptoTransfers:    string(cryptoTransfers),
+			CryptoTransfers:    string(serializedTransfers),
 		})
 	}
 
@@ -597,4 +604,11 @@ func getTokenOperation(
 	operation.Metadata = metadata
 
 	return operation, nil
+}
+
+func safeJsonUnmarshal(s string, value interface{}) error {
+	if s == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(s), value)
 }

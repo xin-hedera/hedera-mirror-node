@@ -22,6 +22,7 @@ package domain
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -73,6 +74,10 @@ func (e *EntityId) Scan(value interface{}) error {
 
 func (e *EntityId) String() string {
 	return fmt.Sprintf("%d.%d.%d", e.ShardNum, e.RealmNum, e.EntityNum)
+}
+
+func (e *EntityId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(e.EncodedId)
 }
 
 func (e *EntityId) UnmarshalJSON(data []byte) error {

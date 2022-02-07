@@ -41,11 +41,11 @@ const (
 //go:embed skewed_account_balance_file_timestamps.txt
 var content string
 
-var missingTransactions []TransactionWithCryptoTransfers
-
-var missingTransactionsByHash map[string]TransactionWithCryptoTransfers
-
-var skewedAccountBalanceFileTimestamps map[int64]bool
+var (
+	missingTransactions                []TransactionWithCryptoTransfers
+	missingTransactionsByHash          map[string]TransactionWithCryptoTransfers
+	skewedAccountBalanceFileTimestamps map[int64]bool
+)
 
 type TransactionWithCryptoTransfers struct {
 	CryptoTransfers []domain.CryptoTransfer
@@ -101,6 +101,7 @@ func init() {
 	}
 
 	// add missing transactions with corresponding transfers
+	missingTransactionsByHash = make(map[string]TransactionWithCryptoTransfers)
 	consensusTimestamp := int64(1568460600232321050)
 	transactionHash := "48ba27acbe8e066d1018a6f7b82b5d08fd6d38e75ffe3a0dfa33d0ab9985f3e712066e5862b4a9f4505d39ecb2612a64"
 	transaction1 := TransactionWithCryptoTransfers{
@@ -125,7 +126,7 @@ func init() {
 			ConsensusTimestamp:   consensusTimestamp,
 			PayerAccountId:       domain.MustDecodeEntityId(int64(16378)),
 			Result:               resultSuccess,
-			TransactionHash:      []byte("0x1234"),
+			TransactionHash:      mustDecode(transactionHash),
 			Type:                 typeCryptoTransfer,
 			ValidDurationSeconds: 120,
 			ValidStartNs:         consensusTimestamp - second,
