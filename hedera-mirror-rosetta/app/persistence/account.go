@@ -38,6 +38,9 @@ import (
 )
 
 const (
+	// the subtrahend part to get an account's crypto balance change in the time range
+	// (start, end] is a workaround for a known services bug (fixed in services v0.4.0) that CryptoTransfer
+	// transactions resulting in INSUFFICIENT_ACCOUNT_BALANCE had listed transfers in TransactionRecord transferList
 	balanceChangeBetween = `select
                               coalesce((
                                 select sum(amount) from crypto_transfer
@@ -54,7 +57,7 @@ const (
                                       from crypto_transfer ct
                                       join transaction t
                                       on t.consensus_timestamp = ct.consensus_timestamp
-                                      where t.type = 14 and t.result <> 22 and ct.consensus_timestamp > @start
+                                      where t.type = 14 and t.result = 28 and ct.consensus_timestamp > @start
                                         and ct.consensus_timestamp <= @end and ct.entity_id = @account_id
                                       group by ct.consensus_timestamp, t.payer_account_id
                                     ), fee as (
