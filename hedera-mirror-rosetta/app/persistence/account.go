@@ -39,9 +39,9 @@ import (
 )
 
 const (
-	// the subtrahend part to get an account's crypto balance change in the time range
-	// (start, end] is a workaround for a known services bug (fixed in services v0.4.0) that CryptoTransfer
-	// transactions resulting in INSUFFICIENT_ACCOUNT_BALANCE had listed transfers in TransactionRecord transferList
+	// the subtrahend part for an account's crypto balance change in the time range (start, end] is a workaround for a
+	// known services bug (fixed in services v0.4.0) that CryptoTransfer transactions resulting in
+	// INSUFFICIENT_ACCOUNT_BALANCE had listed transfers in TransactionRecord transferList
 	balanceChangeBetween = `select
                               coalesce((
                                 select sum(amount) from crypto_transfer
@@ -283,8 +283,7 @@ func (ar *accountRepository) getLatestBalanceSnapshot(ctx context.Context, accou
 	db, cancel := ar.dbClient.GetDbWithContext(ctx)
 	defer cancel()
 
-	// gets the most recent balance at or before timestamp, geneisis for mainnet is 1568412000000081000
-	timestamp = 1568412000000081001
+	// gets the most recent balance at or before timestamp
 	cb := &combinedAccountBalance{}
 	if err := db.Raw(
 		latestBalanceBeforeConsensus,
@@ -348,6 +347,9 @@ func (ar *accountRepository) getBalanceChange(ctx context.Context, accountId, co
 		)
 		return 0, nil, hErrors.ErrDatabaseError
 	}
+
+	// add the amount in missing transactions
+	change.Value += getAmountFromMissingTransactions(accountId, consensusStart, consensusEnd)
 
 	// fungible token values
 	var tokenValues []*types.TokenAmount
@@ -413,6 +415,20 @@ func (ar *accountRepository) getNftBalance(ctx context.Context, accountId, conse
 	}
 
 	return tokenAmounts, nil
+}
+
+func getAmountFromMissingTransactions(accountId, start, end int64) int64 {
+	// in range (start, end]
+	amount := int64(0)
+	for _, transaction := range errata.GetMissingTransactionsBetween(start+1, end) {
+		for _, transfer := range transaction.CryptoTransfers {
+			if transfer.EntityId.EncodedId == accountId {
+				amount += transfer.Amount
+			}
+		}
+	}
+
+	return amount
 }
 
 func getUpdatedTokenAmounts(

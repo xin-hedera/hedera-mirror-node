@@ -29,6 +29,7 @@ import (
 
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errata"
 	hErrors "github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errors"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/interfaces"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/domain"
@@ -244,6 +245,12 @@ func (tr *transactionRepository) FindBetween(ctx context.Context, start, end int
 		start = transactionsBatch[len(transactionsBatch)-1].ConsensusTimestamp + 1
 	}
 
+	var err *rTypes.Error
+	transactions, err = addMissingTransaction(transactions, errata.GetMissingTransactionsBetween(start, end)...)
+	if err != nil {
+		return nil, err
+	}
+
 	hashes := make([]string, 0)
 	sameHashMap := make(map[string][]*transaction)
 	for _, t := range transactions {
@@ -274,27 +281,37 @@ func (tr *transactionRepository) FindByHashInBlock(
 	consensusStart int64,
 	consensusEnd int64,
 ) (*types.Transaction, *rTypes.Error) {
+	var rErr *rTypes.Error
 	var transactions []*transaction
-	transactionHash, err := hex.DecodeString(tools.SafeRemoveHexPrefix(hashStr))
-	if err != nil {
-		return nil, hErrors.ErrInvalidTransactionIdentifier
-	}
+	hashStr = tools.SafeRemoveHexPrefix(hashStr)
 
-	db, cancel := tr.dbClient.GetDbWithContext(ctx)
-	defer cancel()
-
-	if err = db.Raw(
-		selectTransactionsByHashInTimestampRange,
-		sql.Named("hash", transactionHash),
-		sql.Named("start", consensusStart),
-		sql.Named("end", consensusEnd),
-	).Find(&transactions).Error; err != nil {
-		log.Errorf(databaseErrorFormat, hErrors.ErrDatabaseError.Message, err)
-		return nil, hErrors.ErrDatabaseError
+	transactions, rErr = addMissingTransaction(transactions, errata.GetMissingTransactionByHash(hashStr))
+	if rErr != nil {
+		return nil, rErr
 	}
 
 	if len(transactions) == 0 {
-		return nil, hErrors.ErrTransactionNotFound
+		transactionHash, err := hex.DecodeString(hashStr)
+		if err != nil {
+			return nil, hErrors.ErrInvalidTransactionIdentifier
+		}
+
+		db, cancel := tr.dbClient.GetDbWithContext(ctx)
+		defer cancel()
+
+		if err = db.Raw(
+			selectTransactionsByHashInTimestampRange,
+			sql.Named("hash", transactionHash),
+			sql.Named("start", consensusStart),
+			sql.Named("end", consensusEnd),
+		).Find(&transactions).Error; err != nil {
+			log.Errorf(databaseErrorFormat, hErrors.ErrDatabaseError.Message, err)
+			return nil, hErrors.ErrDatabaseError
+		}
+
+		if len(transactions) == 0 {
+			return nil, hErrors.ErrTransactionNotFound
+		}
 	}
 
 	transaction, rErr := tr.constructTransaction(transactions)
@@ -466,6 +483,32 @@ func constructAccount(encodedId int64) (types.Account, *rTypes.Error) {
 		return types.Account{}, hErrors.ErrInternalServerError
 	}
 	return account, nil
+}
+
+func addMissingTransaction(
+	transactions []*transaction,
+	missingTransactions ...errata.TransactionWithCryptoTransfers,
+) ([]*transaction, *rTypes.Error) {
+	for _, missingTransaction := range missingTransactions {
+		if missingTransaction.IsEmpty() {
+			continue
+		}
+
+		cryptoTransfers, err := json.Marshal(missingTransaction.CryptoTransfers)
+		if err != nil {
+			return nil, hErrors.ErrInternalServerError
+		}
+		transactions = append(transactions, &transaction{
+			ConsensusTimestamp: missingTransaction.ConsensusTimestamp,
+			Hash:               missingTransaction.TransactionHash,
+			PayerAccountId:     missingTransaction.PayerAccountId,
+			Result:             missingTransaction.Result,
+			Type:               missingTransaction.Type,
+			CryptoTransfers:    string(cryptoTransfers),
+		})
+	}
+
+	return transactions, nil
 }
 
 func adjustCryptoTransfers(
