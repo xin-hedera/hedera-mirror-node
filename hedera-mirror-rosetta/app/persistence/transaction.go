@@ -359,7 +359,7 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 		transactionResult := types.TransactionResults[int32(transaction.Result)]
 		transactionType := types.TransactionTypes[int32(transaction.Type)]
 
-		if transactionType == types.OperationTypeCryptoTransfer && transactionResult != success {
+		if transactionType == types.OperationTypeCryptoTransfer && transaction.Result == 28 {
 			// only keep the fees (paid from the payer to the node and the treasury), then add a transfer from
 			// the payer for the fee payment
 			// note nonFeeTransfers should be empty when the transaction failed
