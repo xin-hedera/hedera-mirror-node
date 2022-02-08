@@ -92,6 +92,7 @@ const (
                                       left join non_payer_fee npf
                                         on npf.consensus_timestamp = t.consensus_timestamp
                                       where t.payer_account_id = @account_id or npf.entity_id = @account_id
+                                        or npf.entity_id is null
                                       group by t.consensus_timestamp, t.payer_account_id
                                     )
                                     select coalesce(sum(value), 0)
