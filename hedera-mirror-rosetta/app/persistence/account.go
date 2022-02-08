@@ -57,23 +57,45 @@ const (
                                       select ct.consensus_timestamp, t.payer_account_id, sum(amount) as amount
                                       from crypto_transfer ct
                                       join transaction t
-                                      on t.consensus_timestamp = ct.consensus_timestamp
-                                      where t.type = 14 and t.result = 28 and ct.consensus_timestamp > @start
+                                        on t.consensus_timestamp = ct.consensus_timestamp
+                                      where t.type = 14 and t.result <> 22 and ct.consensus_timestamp > @start
                                         and ct.consensus_timestamp <= @end and ct.entity_id = @account_id
+                                        and ct.consensus_timestamp <= 1570107294463734001
                                       group by ct.consensus_timestamp, t.payer_account_id
-                                    ), fee as (
+                                    ), total_fee as (
                                       select t.consensus_timestamp, sum(ct.amount) as fee
                                       from transfer t
                                       join crypto_transfer ct
-                                      on ct.consensus_timestamp = t.consensus_timestamp
-                                      where t.payer_account_id = @account_id and
-                                        ((ct.entity_id >= 3 and ct.entity_id <= 26) or ct.entity_id = 98)
+                                        on ct.consensus_timestamp = t.consensus_timestamp
+                                      where (ct.entity_id >= 3 and ct.entity_id <= 26) or ct.entity_id = 98
                                       group by t.consensus_timestamp
+                                    ), non_payer_fee as (
+                                      select l.consensus_timestamp, l.entity_id, sum(-l.amount) as fee 
+                                      from transfer t
+                                      join crypto_transfer l
+                                        on l.consensus_timestamp = t.consensus_timestamp
+                                      join crypto_transfer r
+                                        on r.consensus_timestamp = l.consensus_timestamp and r.amount = -l.amount
+                                          and r.entity_id = 98
+                                      where l.entity_id <> l.payer_account_id
+                                      group by l.consensus_timestamp, l.entity_id
+                                    ), adjustment as (
+                                      select
+                                        case
+                                          when t.payer_account_id = @account_id then
+                                            sum(t.amount) + coalesce(sum(tf.fee),0) - coalesce(sum(npf.fee), 0)
+                                          else sum(t.amount) + coalesce(sum(npf.fee), 0)
+                                        end as value
+                                      from transfer t
+                                      left join total_fee tf
+                                        on tf.consensus_timestamp = t.consensus_timestamp
+                                      left join non_payer_fee npf
+                                        on npf.consensus_timestamp = t.consensus_timestamp
+                                      where t.payer_account_id = @account_id or npf.entity_id = @account_id
+                                      group by t.consensus_timestamp, t.payer_account_id
                                     )
-                                    select coalesce(sum(t.amount + coalesce(f.fee, 0)), 0)
-                                    from transfer t
-                                    left join fee f
-                                      on t.consensus_timestamp = f.consensus_timestamp
+                                    select coalesce(sum(value), 0)
+                                    from adjustment
                                   )
                                 end
                               ) as value,

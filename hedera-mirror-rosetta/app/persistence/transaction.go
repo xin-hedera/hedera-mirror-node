@@ -59,7 +59,7 @@ const (
                                             coalesce((
                                               select json_agg(json_build_object(
                                                 'account_id', entity_id,
-                                                'amount', amount))
+                                                'amount', amount) order by entity_id)
                                               from crypto_transfer where consensus_timestamp = t.consensus_timestamp
                                             ), '[]') as crypto_transfers,
                                             case
@@ -359,11 +359,14 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 		transactionResult := types.TransactionResults[int32(transaction.Result)]
 		transactionType := types.TransactionTypes[int32(transaction.Type)]
 
-		if transactionType == types.OperationTypeCryptoTransfer && transaction.Result == 28 {
+		if transactionType == types.OperationTypeCryptoTransfer && transaction.Result != 22 &&
+			transaction.ConsensusTimestamp <= int64(1570107294463734001) {
 			// only keep the fees (paid from the payer to the node and the treasury), then add a transfer from
 			// the payer for the fee payment
 			// note nonFeeTransfers should be empty when the transaction failed
 			feeTransfers := make([]hbarTransfer, 0)
+			nonNodeFees := make(map[int64]bool)
+			unconfirmedNonPayerDebits := make([]hbarTransfer, 0)
 			var amount int64
 			for _, cryptoTransfer := range cryptoTransfers {
 				accountId := cryptoTransfer.AccountId.EncodedId
@@ -371,11 +374,26 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 				if (accountId >= 3 && accountId <= 26) || accountId == 98 {
 					feeTransfers = append(feeTransfers, cryptoTransfer)
 					amount += cryptoTransfer.Amount
+
+					if accountId == 98 {
+						nonNodeFees[cryptoTransfer.Amount] = true
+					}
+				} else if cryptoTransfer.Amount < 0 && cryptoTransfer.AccountId != transaction.PayerAccountId {
+					unconfirmedNonPayerDebits = append(unconfirmedNonPayerDebits, cryptoTransfer)
 				}
 			}
+
+			var amountPaidByOthers int64
+			for _, cryptoTransfer := range unconfirmedNonPayerDebits {
+				if nonNodeFees[-cryptoTransfer.Amount] {
+					amountPaidByOthers += -cryptoTransfer.Amount
+					feeTransfers = append(feeTransfers, cryptoTransfer)
+				}
+			}
+
 			cryptoTransfers = append(feeTransfers, hbarTransfer{
 				AccountId: transaction.PayerAccountId,
-				Amount:    -amount,
+				Amount:    -(amount - amountPaidByOthers),
 			})
 		}
 
@@ -523,20 +541,27 @@ func adjustCryptoTransfers(
 	nonFeeTransferMap map[int64]int64,
 ) []hbarTransfer {
 	cryptoTransferMap := make(map[int64]hbarTransfer)
+	accountIds := make([]int64, 0) // retain the ascending order of account ids
+	lastAccountId := int64(0)
 	for _, transfer := range cryptoTransfers {
-		key := transfer.AccountId.EncodedId
-		cryptoTransferMap[key] = hbarTransfer{
+		accountId := transfer.AccountId.EncodedId
+		cryptoTransferMap[accountId] = hbarTransfer{
 			AccountId: transfer.AccountId,
-			Amount:    transfer.Amount + cryptoTransferMap[key].Amount,
+			Amount:    transfer.Amount + cryptoTransferMap[accountId].Amount,
+		}
+
+		if accountId != lastAccountId {
+			accountIds = append(accountIds, accountId)
+			lastAccountId = accountId
 		}
 	}
 
 	adjusted := make([]hbarTransfer, 0, len(cryptoTransfers))
-	for key, aggregated := range cryptoTransferMap {
-		amount := aggregated.Amount - nonFeeTransferMap[key]
-		if amount != 0 {
+	for _, accountId := range accountIds {
+		amount := cryptoTransferMap[accountId].Amount - nonFeeTransferMap[accountId]
+		if amount != 9 {
 			adjusted = append(adjusted, hbarTransfer{
-				AccountId: aggregated.AccountId,
+				AccountId: cryptoTransferMap[accountId].AccountId,
 				Amount:    amount,
 			})
 		}
