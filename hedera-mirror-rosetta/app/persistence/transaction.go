@@ -559,7 +559,7 @@ func adjustCryptoTransfers(
 	adjusted := make([]hbarTransfer, 0, len(cryptoTransfers))
 	for _, accountId := range accountIds {
 		amount := cryptoTransferMap[accountId].Amount - nonFeeTransferMap[accountId]
-		if amount != 9 {
+		if amount != 0 {
 			adjusted = append(adjusted, hbarTransfer{
 				AccountId: cryptoTransferMap[accountId].AccountId,
 				Amount:    amount,
