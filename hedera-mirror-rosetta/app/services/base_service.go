@@ -115,6 +115,14 @@ func (b *BaseService) RetrieveGenesis(ctx context.Context) (*types.Block, *rType
 	return b.blockRepo.RetrieveGenesis(ctx)
 }
 
+func (b *BaseService) RetrieveGenesisTransactions(ctx context.Context) ([]*types.Transaction, *rTypes.Error) {
+	if !b.IsOnline() {
+		return nil, errors.ErrInternalServerError
+	}
+
+	return b.blockRepo.RetrieveGenesisTransactions(ctx)
+}
+
 func (b *BaseService) RetrieveLatest(ctx context.Context) (*types.Block, *rTypes.Error) {
 	if !b.IsOnline() {
 		return nil, errors.ErrInternalServerError

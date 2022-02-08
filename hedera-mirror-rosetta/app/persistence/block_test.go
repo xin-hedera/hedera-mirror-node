@@ -602,7 +602,7 @@ func TestRecordFileToBlock(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.input.ToBlock(genesisConsensusStart, genesisIndex))
+			assert.Equal(t, tt.expected, tt.input.toBlock(genesisConsensusStart, genesisIndex, "default"))
 		})
 	}
 }

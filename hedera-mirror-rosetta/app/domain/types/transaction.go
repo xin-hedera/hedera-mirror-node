@@ -28,7 +28,7 @@ import (
 // Transaction is domain level struct used to represent Transaction conceptual mapping in Hedera
 type Transaction struct {
 	EntityId   *domain.EntityId
-	Hash       string
+	Hash       string // with 0x prefix
 	Operations []*Operation
 }
 

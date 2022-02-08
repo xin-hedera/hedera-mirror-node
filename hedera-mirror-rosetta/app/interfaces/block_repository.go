@@ -42,6 +42,9 @@ type BlockRepository interface {
 	// RetrieveGenesis retrieves the genesis block
 	RetrieveGenesis(ctx context.Context) (*types.Block, *rTypes.Error)
 
+	// RetrieveGenesisTransactions retrieves the transactions in the genesis block
+	RetrieveGenesisTransactions(ctx context.Context) ([]*types.Transaction, *rTypes.Error)
+
 	// RetrieveLatest retrieves the second-latest block. It's required to hide the latest block so account service can
 	// add 0-amount genesis token balance to a block for tokens with first transfer to the account in the next block
 	RetrieveLatest(ctx context.Context) (*types.Block, *rTypes.Error)

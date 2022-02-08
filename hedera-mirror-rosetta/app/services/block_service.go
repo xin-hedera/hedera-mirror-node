@@ -25,6 +25,8 @@ import (
 
 	"github.com/coinbase/rosetta-sdk-go/server"
 	rTypes "github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/domain/types"
+	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/errors"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/tools"
 )
 
@@ -48,7 +50,12 @@ func (s *blockAPIService) Block(
 		return nil, err
 	}
 
-	if block.Transactions, err = s.FindBetween(ctx, block.ConsensusStartNanos, block.ConsensusEndNanos); err != nil {
+	if block.Index == 0 {
+		block.Transactions, err = s.RetrieveGenesisTransactions(ctx)
+	} else {
+		block.Transactions, err = s.FindBetween(ctx, block.ConsensusStartNanos, block.ConsensusEndNanos)
+	}
+	if err != nil {
 		return nil, err
 	}
 
@@ -66,15 +73,39 @@ func (s *blockAPIService) BlockTransaction(
 		return nil, err
 	}
 
-	transaction, err := s.FindByHashInBlock(
-		ctx,
-		request.TransactionIdentifier.Hash,
-		block.ConsensusStartNanos,
-		block.ConsensusEndNanos,
-	)
+	var transaction *types.Transaction
+	hash := request.TransactionIdentifier.Hash
+	if block.Index == 0 {
+		transaction, err = s.findTransactionInGenesisBlock(ctx, hash)
+	} else {
+		transaction, err = s.FindByHashInBlock(
+			ctx,
+			hash,
+			block.ConsensusStartNanos,
+			block.ConsensusEndNanos,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	return &rTypes.BlockTransactionResponse{Transaction: transaction.ToRosetta()}, nil
+}
+
+func (s *blockAPIService) findTransactionInGenesisBlock(ctx context.Context, hash string) (
+	*types.Transaction,
+	*rTypes.Error,
+) {
+	transactions, err := s.blockRepo.RetrieveGenesisTransactions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, transaction := range transactions {
+		if transaction.Hash == hash {
+			return transaction, nil
+		}
+	}
+
+	return nil, errors.ErrTransactionNotFound
 }
