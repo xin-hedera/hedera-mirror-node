@@ -34,16 +34,92 @@ import (
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/persistence/domain"
 	"github.com/hashgraph/hedera-mirror-node/hedera-mirror-rosetta/app/tools"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 const (
 	batchSize                      = 2000
-	transactionResultSuccess int32 = 22
+	transactionResultSuccess int16 = 22
 )
 
 const (
-	andTransactionHashFilter  = " and transaction_hash = @hash"
-	orderByConsensusTimestamp = " order by consensus_timestamp"
+	andTransactionHashFilter                       = " and transaction_hash = @hash"
+	orderByConsensusTimestamp                      = " order by consensus_timestamp"
+	selectDissociateTokenTransfersInTimestampRange = "with" + genesisTimestampCte + `, success_dissociate as (
+        select entity_id as account_id, consensus_timestamp
+        from transaction
+        where type = 41 and result = 22
+           and consensus_timestamp >= @start and consensus_timestamp <= @end
+      ), dissociated_token as (
+        select ta.account_id, ta.token_id, t.type, t.decimals, sd.consensus_timestamp
+        from token_account ta
+        join success_dissociate sd
+          on ta.account_id = sd.account_id and ta.modified_timestamp = sd.consensus_timestamp
+        join token t
+          on t.token_id = ta.token_id
+        join entity e
+          on e.id = t.token_id and e.deleted is true and sd.consensus_timestamp > lower(e.timestamp_range)
+        join genesis
+          on t.created_timestamp > timestamp
+      ), ft_balance as (
+        select
+          d.*,
+          (
+            with snapshot as (
+              select max(abf.consensus_timestamp) as timestamp
+              from account_balance_file as abf
+              where abf.consensus_timestamp < d.consensus_timestamp
+            )
+            select
+              coalesce((
+                select balance
+                from token_balance as tb
+                where tb.account_id = d.account_id and tb.token_id = d.token_id
+                  and tb.consensus_timestamp = snapshot.timestamp
+              ), 0) + (
+                select coalesce(sum(amount), 0)
+                from token_transfer as tt
+                where tt.account_id = d.account_id and tt.token_id = d.token_id
+                  and tt.consensus_timestamp > snapshot.timestamp and tt.consensus_timestamp < d.consensus_timestamp
+              )
+            from snapshot
+          ) balance
+        from (select * from dissociated_token where type = 'FUNGIBLE_COMMON') as d
+      ), ft_xfer as  (
+        select
+          consensus_timestamp,
+          json_agg(json_build_object(
+            'account_id', account_id,
+            'amount', -balance,
+            'decimals', decimals,
+            'token_id', token_id,
+            'type', type
+          ) order by token_id) as token_transfers
+        from ft_balance
+        where balance <> 0
+        group by consensus_timestamp
+      ), nft_xfer as (
+        select
+          consensus_timestamp,
+          json_agg(json_build_object(
+            'receiver_account_id', null,
+            'sender_account_id', nft.account_id,
+            'serial_number', nft.serial_number,
+            'token_id', nft.token_id
+          ) order by nft.token_id, nft.serial_number) as nft_transfers
+        from (select * from dissociated_token where type = 'NON_FUNGIBLE_UNIQUE') as d
+        join nft on nft.account_id = d.account_id and nft.token_id = d.token_id
+        where nft.deleted is false or nft.modified_timestamp = d.consensus_timestamp
+        group by consensus_timestamp
+      )
+      select
+        coalesce(fx.consensus_timestamp, nx.consensus_timestamp) as consensus_timestamp,
+        coalesce(fx.token_transfers, '[]') as token_transfers,
+        coalesce(nx.nft_transfers, '[]') as nft_transfers
+      from ft_xfer fx
+      full outer join nft_xfer nx
+        on fx.consensus_timestamp = nx.consensus_timestamp
+      order by coalesce(fx.consensus_timestamp, nx.consensus_timestamp)`
 	// selectTransactionsInTimestampRange selects the transactions with its crypto transfers in json, non-fee transfers
 	// in json, token transfers in json, and optionally the token information when the transaction is token create,
 	// token delete, or token update. Note the three token transactions are the ones the entity_id in the transaction
@@ -58,7 +134,7 @@ const (
                                             coalesce((
                                               select json_agg(json_build_object(
                                                 'account_id', entity_id,
-                                                'amount', amount))
+                                                'amount', amount) order by entity_id)
                                               from crypto_transfer where consensus_timestamp = t.consensus_timestamp
                                             ), '[]') as crypto_transfers,
                                             case
@@ -66,7 +142,7 @@ const (
                                                   select json_agg(json_build_object(
                                                       'account_id', entity_id,
                                                       'amount', amount
-                                                    ))
+                                                    ) order by entity_id)
                                                   from non_fee_transfer
                                                   where consensus_timestamp = t.consensus_timestamp
                                                 ), '[]')
@@ -79,7 +155,7 @@ const (
                                                   'decimals', tk.decimals,
                                                   'token_id', tkt.token_id,
                                                   'type', tk.type
-                                                ))
+                                                ) order by account_id, tk.token_id)
                                               from token_transfer tkt
                                               join token tk on tk.token_id = tkt.token_id
                                               join genesis on tk.created_timestamp > genesis.timestamp
@@ -91,7 +167,7 @@ const (
                                                   'sender_account_id', sender_account_id,
                                                   'serial_number', serial_number,
                                                   'token_id', tk.token_id
-                                                ))
+                                                ) order by tk.token_id, serial_number)
                                               from nft_transfer nftt
                                               join token tk on tk.token_id = nftt.token_id
                                               join genesis on tk.created_timestamp > genesis.timestamp
@@ -247,6 +323,8 @@ func (tr *transactionRepository) FindBetween(ctx context.Context, start, end int
 		start = transactionsBatch[len(transactionsBatch)-1].ConsensusTimestamp + 1
 	}
 
+	tr.processSuccessTokenDissociates(db, transactions, start, end)
+
 	hashes := make([]string, 0)
 	sameHashMap := make(map[string][]*transaction)
 	for _, t := range transactions {
@@ -300,6 +378,15 @@ func (tr *transactionRepository) FindByHashInBlock(
 		return nil, hErrors.ErrTransactionNotFound
 	}
 
+	for _, transaction := range transactions {
+		if transaction.Type == 41 && transaction.Result == transactionResultSuccess {
+
+		}
+		start := transactions[0].ConsensusTimestamp
+		end := transactions[len(transactions)-1].ConsensusTimestamp
+		tr.processSuccessTokenDissociates(db, transactions, start, end)
+	}
+
 	transaction, rErr := tr.constructTransaction(transactions)
 	if rErr != nil {
 		return nil, rErr
@@ -342,7 +429,7 @@ func (tr *transactionRepository) constructTransaction(sameHashTransactions []*tr
 			return nil, hErrors.ErrInternalServerError
 		}
 
-		transactionResult := types.TransactionResults[int32(transaction.Result)]
+		transactionResult := types.TransactionResults[transaction.Result]
 		transactionType := types.TransactionTypes[int32(transaction.Type)]
 
 		nonFeeTransferMap := aggregateNonFeeTransfers(nonFeeTransfers)
@@ -438,7 +525,46 @@ func (tr *transactionRepository) appendTransferOperations(
 	return operations
 }
 
-func IsTransactionResultSuccessful(result int32) bool {
+func (tr *transactionRepository) processSuccessTokenDissociates(
+	db *gorm.DB,
+	transactions []*transaction,
+	start int64,
+	end int64,
+) *rTypes.Error {
+	tokenDissociateTransactions := make([]*transaction, 0)
+	if err := db.Raw(
+		selectDissociateTokenTransfersInTimestampRange,
+		sql.Named("start", start),
+		sql.Named("end", end),
+	).Scan(&tokenDissociateTransactions).Error; err != nil {
+		log.Errorf(databaseErrorFormat, hErrors.ErrDatabaseError.Message, err)
+		return hErrors.ErrDatabaseError
+	}
+
+	// replace NftTransfers and TokenTransfers for any matching transaction by consensus timestamp
+	// both transactions and tokenDissociateTransactions are sorted by consensus timestamp,
+	// and tokenDissociateTransactions is a subset of transactions
+	i := 0
+	j := 0
+	for {
+		if i >= len(tokenDissociateTransactions) || j >= len(transactions) {
+			break
+		}
+
+		if tokenDissociateTransactions[i].ConsensusTimestamp == transactions[j].ConsensusTimestamp {
+			transactions[j].NftTransfers = tokenDissociateTransactions[i].NftTransfers
+			transactions[j].TokenTransfers = tokenDissociateTransactions[i].TokenTransfers
+			i++
+			j++
+		} else {
+			j++
+		}
+	}
+
+	return nil
+}
+
+func IsTransactionResultSuccessful(result int16) bool {
 	return result == transactionResultSuccess
 }
 

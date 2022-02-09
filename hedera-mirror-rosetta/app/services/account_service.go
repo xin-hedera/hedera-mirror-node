@@ -72,18 +72,18 @@ func (a *AccountAPIService) AccountBalance(
 		return nil, err
 	}
 
-	tokenSet := make(map[int64]bool)
-	for _, balance := range balances {
-		if tokenAmount, ok := balance.(*types.TokenAmount); ok {
-			tokenSet[tokenAmount.TokenId.EncodedId] = true
-		}
-	}
+	// tokenSet := make(map[int64]bool)
+	// for _, balance := range balances {
+	// 	if tokenAmount, ok := balance.(*types.TokenAmount); ok {
+	// 		tokenSet[tokenAmount.TokenId.EncodedId] = true
+	// 	}
+	// }
 
-	tokenBalances, err := a.getAdditionalTokenBalances(ctx, account.EncodedId, block.ConsensusEndNanos, tokenSet)
-	if err != nil {
-		return nil, err
-	}
-	balances = append(balances, tokenBalances...)
+	// tokenBalances, err := a.getAdditionalTokenBalances(ctx, account.EncodedId, block.ConsensusEndNanos, tokenSet)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// balances = append(balances, tokenBalances...)
 
 	return &rTypes.AccountBalanceResponse{
 		BlockIdentifier: &rTypes.BlockIdentifier{
@@ -95,8 +95,8 @@ func (a *AccountAPIService) AccountBalance(
 }
 
 func (a *AccountAPIService) AccountCoins(
-	ctx context.Context,
-	request *rTypes.AccountCoinsRequest,
+	_ context.Context,
+	_ *rTypes.AccountCoinsRequest,
 ) (*rTypes.AccountCoinsResponse, *rTypes.Error) {
 	return nil, errors.ErrNotImplemented
 }
