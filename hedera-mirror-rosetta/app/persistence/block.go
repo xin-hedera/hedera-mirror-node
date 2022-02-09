@@ -41,7 +41,7 @@ import (
 )
 
 const (
-	accountBalanceBatchSize = 1000
+	accountBalanceBatchSize = 10000
 	consensusTimestampUnset = -1
 
 	findGenesisAccountBalanceTimestamp = `select min(consensus_timestamp) from account_balance_file`
@@ -266,8 +266,8 @@ func (br *blockRepository) RetrieveLatest(ctx context.Context) (*types.Block, *r
 	db, cancel := br.dbClient.GetDbWithContext(ctx)
 	defer cancel()
 
-	rb := &recordBlock{}
-	if err := db.Raw(selectLatestWithIndex).First(rb).Error; err != nil {
+	rb := recordBlock{}
+	if err := db.Raw(selectLatestWithIndex).First(&rb).Error; err != nil {
 		return nil, handleDatabaseError(err, hErrors.ErrBlockNotFound)
 	}
 
@@ -279,14 +279,13 @@ func (br *blockRepository) RetrieveLatest(ctx context.Context) (*types.Block, *r
 }
 
 func (br *blockRepository) findBlockByIndex(ctx context.Context, index int64) (*types.Block, *rTypes.Error) {
-	rb := &br.genesisBlock
+	rb := br.genesisBlock
 	if index > 0 {
 		db, cancel := br.dbClient.GetDbWithContext(ctx)
 		defer cancel()
 
-		rb = &recordBlock{}
 		dbIndex := br.genesisRecordFileIndex + (index - 1)
-		if err := db.Raw(selectRecordBlockByIndex, sql.Named("index", dbIndex)).First(rb).Error; err != nil {
+		if err := db.Raw(selectRecordBlockByIndex, sql.Named("index", dbIndex)).First(&rb).Error; err != nil {
 			return nil, handleDatabaseError(err, hErrors.ErrBlockNotFound)
 		}
 	}
@@ -295,15 +294,12 @@ func (br *blockRepository) findBlockByIndex(ctx context.Context, index int64) (*
 }
 
 func (br *blockRepository) findBlockByHash(ctx context.Context, hash string) (*types.Block, *rTypes.Error) {
-	var rb *recordBlock
-	if hash == br.genesisBlock.Hash {
-		rb = &br.genesisBlock
-	} else {
+	rb := br.genesisBlock
+	if hash != br.genesisBlock.Hash {
 		db, cancel := br.dbClient.GetDbWithContext(ctx)
 		defer cancel()
 
-		rb := &recordBlock{}
-		if err := db.Raw(selectByHashWithIndex, sql.Named("hash", hash)).First(rb).Error; err != nil {
+		if err := db.Raw(selectByHashWithIndex, sql.Named("hash", hash)).First(&rb).Error; err != nil {
 			return nil, handleDatabaseError(err, hErrors.ErrBlockNotFound)
 		}
 	}
