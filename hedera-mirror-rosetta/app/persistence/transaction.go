@@ -48,7 +48,7 @@ const (
 	// in json, token transfers in json, and optionally the token information when the transaction is token create,
 	// token delete, or token update. Note the three token transactions are the ones the entity_id in the transaction
 	// table is its related token id and require an extra rosetta operation
-	selectTransactionsInTimestampRange = `select
+	selectTransactionsInTimestampRange = "with " + genesisTimestampCte + `select
                                             t.consensus_timestamp,
                                             t.entity_id,
                                             t.payer_account_id,
@@ -82,6 +82,7 @@ const (
                                                 ))
                                               from token_transfer tkt
                                               join token tk on tk.token_id = tkt.token_id
+                                              join genesis on tk.created_timestamp > genesis.timestamp
                                               where tkt.consensus_timestamp = t.consensus_timestamp
                                             ), '[]') as token_transfers,
                                             coalesce((
@@ -93,6 +94,7 @@ const (
                                                 ))
                                               from nft_transfer nftt
                                               join token tk on tk.token_id = nftt.token_id
+                                              join genesis on tk.created_timestamp > genesis.timestamp
                                               where nftt.consensus_timestamp = t.consensus_timestamp and serial_number <> -1
                                             ), '[]') as nft_transfers,
                                             case
@@ -105,6 +107,7 @@ const (
                                                     'type', type
                                                   )
                                                   from token
+												  join genesis on created_timestamp > genesis.timestamp
                                                   where token_id = t.entity_id
                                                 ), '{}')
                                               else '{}'

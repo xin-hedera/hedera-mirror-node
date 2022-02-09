@@ -44,8 +44,6 @@ const (
 	accountBalanceBatchSize = 10000
 	consensusTimestampUnset = -1
 
-	findGenesisAccountBalanceTimestamp = `select min(consensus_timestamp) from account_balance_file`
-
 	// selectLatestWithIndex - Selects the latest record block
 	selectLatestWithIndex string = `select consensus_start,
                                            consensus_end,
@@ -316,7 +314,7 @@ func (br *blockRepository) initGenesisRecordFile(ctx context.Context) *rTypes.Er
 	defer cancel()
 
 	var genesisAccountBalanceTimestamp int64
-	if err := db.Raw(findGenesisAccountBalanceTimestamp).Scan(&genesisAccountBalanceTimestamp).Error; err != nil {
+	if err := db.Raw(genesisTimestampQuery).Scan(&genesisAccountBalanceTimestamp).Error; err != nil {
 		log.Debug("Failed to get genesis account balance timestamp", err)
 		return handleDatabaseError(err, hErrors.ErrNodeIsStarting)
 	}

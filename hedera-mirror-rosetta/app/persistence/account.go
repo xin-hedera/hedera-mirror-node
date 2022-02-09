@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	balanceChangeBetween = `select
+	balanceChangeBetween = "with" + genesisTimestampCte + `select
                               coalesce((
                                 select sum(amount) from crypto_transfer
                                 where
@@ -58,6 +58,8 @@ const (
                                   from token_transfer tt
                                   join token t
                                     on t.token_id = tt.token_id
+                                  join genesis
+                                    on t.created_timestamp > timestamp
                                   where
                                     consensus_timestamp > @start and
                                     consensus_timestamp <= @end and
@@ -66,7 +68,7 @@ const (
                                   group by tt.account_id, tt.token_id, t.decimals, t.type
                                 ) token_change
                               ), '[]') as token_values`
-	latestBalanceBeforeConsensus = `with abm as (
+	latestBalanceBeforeConsensus = "with" + genesisTimestampCte + `, abm as (
                                       select max(consensus_timestamp)
                                       from account_balance_file where consensus_timestamp <= @timestamp
                                     )
@@ -82,6 +84,7 @@ const (
                                         ))
                                         from token_balance tb
                                         join token t on t.token_id = tb.token_id
+                                        join genesis on t.created_timestamp > genesis.timestamp
                                         where tb.consensus_timestamp = abm.max and
                                           tb.account_id = @account_id and
                                           t.type = 'FUNGIBLE_COMMON'
@@ -97,13 +100,17 @@ const (
                           from contract
                           where id = @entity_id`
 	// #nosec
-	selectEverOwnedTokensByBlock = `select distinct on (t.token_id) t.decimals, t.token_id, t.type
+	selectEverOwnedTokensByBlock = "with " + genesisTimestampCte + `
+                                    select distinct on (t.token_id) t.decimals, t.token_id, t.type
                                     from token_account ta
-                                    join token t
-                                      on t.token_id = ta.token_id
+                                    join token t on t.token_id = ta.token_id
+                                    join genesis on t.created_timestamp > timestamp
                                     where account_id = @account_id and ta.modified_timestamp <= @consensus_timestamp`
-	selectNftTransfersForAccount = `select *
-                                    from nft_transfer
+	selectNftTransfersForAccount = "with" + genesisTimestampCte + `
+                                    select nt.*
+                                    from nft_transfer nt
+                                    join token t on t.token_id = nt.token_id
+                                    join genesis on t.created_timestamp > timestamp
                                     where consensus_timestamp <= @consensus_end and
                                       (receiver_account_id = @account_id or sender_account_id = @account_id)
                                     order by consensus_timestamp desc`
@@ -299,7 +306,8 @@ func (ar *accountRepository) getBalanceChange(ctx context.Context, accountId, co
 		log.Errorf(
 			databaseErrorFormat,
 			hErrors.ErrDatabaseError.Message,
-			fmt.Sprintf("%v looking for account %d's balance change in [%d, %d]", err, accountId, consensusStart, consensusEnd),
+			fmt.Sprintf("%v looking for account %d's balance change in [%d, %d]", err, accountId, consensusStart,
+				consensusEnd),
 		)
 		return 0, nil, hErrors.ErrDatabaseError
 	}
