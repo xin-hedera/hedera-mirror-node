@@ -69,12 +69,12 @@ const (
                                 ) token_change
                               ), '[]') as token_values,
                               (
-                                select json_agg(json_build_object(
+                                select coalesce(json_agg(json_build_object(
                                   'associated', associated,
                                   'decimals', decimals,
                                   'token_id', token_id,
                                   'type',  type
-                                ) order by token_id)
+                                ) order by token_id), '[]')
                                 from (
                                   select distinct on (t.token_id) ta.associated, t.decimals, t.token_id, t.type
                                   from token_account ta
