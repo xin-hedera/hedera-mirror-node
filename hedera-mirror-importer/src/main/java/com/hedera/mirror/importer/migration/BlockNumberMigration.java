@@ -42,8 +42,8 @@ import com.hedera.mirror.importer.repository.RecordFileRepository;
 public class BlockNumberMigration extends MirrorBaseJavaMigration {
 
     static final Map<HederaNetwork, Pair<Long, Long>> BLOCK_NUMBER_MAPPING = Map.of(
-            TESTNET, Pair.of(1654885757958366469L, 21831887L),
-            MAINNET, Pair.of(1654885703747893000L, 33522048L)
+            TESTNET, Pair.of(1655942641384587000L, 22173380L),
+            MAINNET, Pair.of(1655942523824619692L, 34047682L)
     );
 
     private final JdbcTemplate jdbcTemplate;
@@ -52,7 +52,7 @@ public class BlockNumberMigration extends MirrorBaseJavaMigration {
 
     @Override
     public Integer getChecksum() {
-        return 3; // Change this if this migration should be rerun
+        return 4; // Change this if this migration should be rerun
     }
 
     @Override
