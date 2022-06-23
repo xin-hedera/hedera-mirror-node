@@ -89,7 +89,7 @@ func newBlockchainOnlineRouter(
 	networkAPIService := services.NewNetworkAPIService(baseService, addressBookEntryRepo, network, version)
 	networkAPIController := server.NewNetworkAPIController(networkAPIService, asserter)
 
-	blockAPIService := services.NewBlockAPIService(baseService)
+	blockAPIService := services.NewBlockAPIService(accountRepo, baseService)
 	blockAPIController := server.NewBlockAPIController(blockAPIService, asserter)
 
 	mempoolAPIService := services.NewMempoolAPIService()
