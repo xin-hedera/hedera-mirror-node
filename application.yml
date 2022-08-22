@@ -1,9 +1,12 @@
-#hedera:
-#  mirror:
-#    importer:
-#      downloader:
-#        accessKey: {GOOG1E/AWS....}
-#        cloudProvider: "GCP/s3"
-#        gcpProjectId: {projectId} # N/A for AWS
-#        secretKey: {GOOG1E/AWS....}
-#      network: PREVIEWNET/TESTNET/MAINNET # Select one network
+hedera:
+  mirror:
+    importer:
+      generator:
+        record:
+          enabled: true
+          transactions_per_file: 200
+      downloader:
+        balance:
+          enabled: false
+        record:
+          enabled: false

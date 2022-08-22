@@ -23,16 +23,12 @@ package com.hedera.mirror.importer.config;
 import static com.hedera.mirror.importer.domain.StreamFilename.FileType.DATA;
 import static org.apache.commons.lang3.ObjectUtils.max;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Named;
-
-import com.hedera.mirror.common.util.DomainUtils;
-
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.extern.log4j.Log4j2;
@@ -40,6 +36,7 @@ import org.springframework.cglib.core.ReflectUtils;
 
 import com.hedera.mirror.common.domain.StreamFile;
 import com.hedera.mirror.common.domain.StreamType;
+import com.hedera.mirror.common.util.DomainUtils;
 import com.hedera.mirror.importer.MirrorProperties;
 import com.hedera.mirror.importer.domain.StreamFilename;
 import com.hedera.mirror.importer.downloader.DownloaderProperties;
@@ -84,7 +81,7 @@ public class MirrorDateRangePropertiesProcessor {
         DownloaderProperties downloaderProperties = getDownloaderProperties(streamType);
 
         if (!downloaderProperties.isEnabled()) {
-            return DateRangeFilter.empty();
+            return DateRangeFilter.all();
         }
 
         Instant startDate = mirrorProperties.getStartDate();
@@ -120,7 +117,7 @@ public class MirrorDateRangePropertiesProcessor {
      *
      * @param streamType What type of stream to retrieve
      * @return The latest stream file from the database or a dummy stream file if it calculated a different effective
-     * start date
+     *         start date
      */
     public <T extends StreamFile> Optional<T> getLastStreamFile(StreamType streamType) {
         Instant startDate = mirrorProperties.getStartDate();
