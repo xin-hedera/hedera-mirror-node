@@ -25,6 +25,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -78,8 +79,8 @@ public abstract class AbstractStreamFileParser<T extends StreamFile> implements 
             try {
                 doParse(streamFile);
 
-                log.info("Successfully processed {} items from {} in {}",
-                        streamFile.getCount(), streamFile.getName(), stopwatch);
+                log.info("Successfully processed {} items from {} in {} ms",
+                        streamFile.getCount(), streamFile.getName(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
                 success = true;
                 Instant consensusInstant = Instant.ofEpochSecond(0L, streamFile.getConsensusEnd());
                 parseLatencyMetric.record(Duration.between(consensusInstant, Instant.now()));
