@@ -84,7 +84,7 @@ class BalanceReconciliationServiceTest extends IntegrationTest {
         reconciliationProperties.setRemediationStrategy(FAIL);
         reconciliationProperties.setStartDate(Instant.EPOCH);
         reconciliationProperties.setToken(true);
-        reconciliationService.status.set(UNKNOWN);
+        reconciliationService.getStatus().set(UNKNOWN);
         log.info("meterRegistry - {}", System.identityHashCode(meterRegistry));
     }
 
