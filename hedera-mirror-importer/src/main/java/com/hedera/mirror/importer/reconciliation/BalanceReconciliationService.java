@@ -32,8 +32,9 @@ import com.hedera.mirror.importer.repository.AccountBalanceFileRepository;
 import com.hedera.mirror.importer.repository.ReconciliationJobRepository;
 import com.hedera.mirror.importer.repository.RecordFileRepository;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.*;
-import lombok.extern.log4j.Log4j2;
+import lombok.Builder;
+import lombok.CustomLog;
+import lombok.Value;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.util.Version;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -54,9 +55,8 @@ import static com.hedera.mirror.common.domain.job.ReconciliationStatus.*;
 import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties.RemediationStrategy.ACCUMULATE;
 import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties.RemediationStrategy.FAIL;
 
-@Log4j2
+@CustomLog
 @Named
-@RequiredArgsConstructor
 class BalanceReconciliationService {
 
     static final long FIFTY_BILLION_HBARS = 50_000_000_000L * 100_000_000L;
@@ -81,33 +81,27 @@ class BalanceReconciliationService {
             from token_transfer where consensus_timestamp > ? and consensus_timestamp <= ?
             group by token_id, account_id""";
 
+    final AtomicReference<ReconciliationStatus> status;
+
     private final AccountBalanceFileRepository accountBalanceFileRepository;
     private final JdbcOperations jdbcOperations;
-    private final MeterRegistry meterRegistry;
     private final RecordFileRepository recordFileRepository;
     private final ReconciliationProperties reconciliationProperties;
     private final ReconciliationJobRepository reconciliationJobRepository;
 
-    @Getter(lazy = true, value = AccessLevel.PACKAGE)
-    private final AtomicReference<ReconciliationStatus> status = createStatus();
-
-//    BalanceReconciliationService(AccountBalanceFileRepository accountBalanceFileRepository,
-//                                 JdbcOperations jdbcOperations,
-//                                 MeterRegistry meterRegistry,
-//                                 RecordFileRepository recordFileRepository,
-//                                 ReconciliationProperties reconciliationProperties,
-//                                 ReconciliationJobRepository reconciliationJobRepository) {
-//        this.accountBalanceFileRepository = accountBalanceFileRepository;
-//        this.jdbcOperations = jdbcOperations;
-//        this.meterRegistry = meterRegistry;
-//        this.recordFileRepository = recordFileRepository;
-//        this.reconciliationProperties = reconciliationProperties;
-//        this.reconciliationJobRepository = reconciliationJobRepository;
-//        this.status = meterRegistry.gauge(METRIC, new AtomicReference<>(UNKNOWN), s -> {
-//            log.info("status object id - {}", System.identityHashCode(s));
-//            return s.get().ordinal();
-//        });
-//    }
+    BalanceReconciliationService(AccountBalanceFileRepository accountBalanceFileRepository,
+                                 JdbcOperations jdbcOperations,
+                                 MeterRegistry meterRegistry,
+                                 RecordFileRepository recordFileRepository,
+                                 ReconciliationProperties reconciliationProperties,
+                                 ReconciliationJobRepository reconciliationJobRepository) {
+        this.accountBalanceFileRepository = accountBalanceFileRepository;
+        this.jdbcOperations = jdbcOperations;
+        this.recordFileRepository = recordFileRepository;
+        this.reconciliationProperties = reconciliationProperties;
+        this.reconciliationJobRepository = reconciliationJobRepository;
+        this.status = meterRegistry.gauge(METRIC, new AtomicReference<>(UNKNOWN), s -> s.get().ordinal());
+    }
 
     @Scheduled(cron = "${hedera.mirror.importer.reconciliation.cron:0 0 0 * * *}")
     public synchronized void reconcile() {
@@ -175,21 +169,13 @@ class BalanceReconciliationService {
         } finally {
             reconciliationJob.setTimestampEnd(Instant.now());
             reconciliationJobRepository.save(reconciliationJob);
-            var tmpStatus = getStatus();
-            tmpStatus.set(reconciliationJob.getStatus());
-            log.info("job status - {}, atomic reference value - {}, status id - {}", reconciliationJob.getStatus(),
-                    tmpStatus.get(), System.identityHashCode(tmpStatus));
-
-            // debug
-            log.info("Value set - {}", meterRegistry.find(METRIC).gauges().stream().toList().get(0).value());
+            status.set(reconciliationJob.getStatus());
+//            log.info("job status - {}, atomic reference value - {}, status id - {}", reconciliationJob.getStatus(),
+//                    status.get(), System.identityHashCode(status));
+//
+//            // debug
+//            log.info("Value set - {}", meterRegistry.find(METRIC).gauges().stream().toList().get(0).value());
         }
-    }
-
-    private AtomicReference<ReconciliationStatus> createStatus() {
-        return meterRegistry.gauge(METRIC, new AtomicReference<>(UNKNOWN), s -> {
-            log.info("status object id - {}", System.identityHashCode(s));
-            return s.get().ordinal();
-        });
     }
 
     private ReconciliationJob getLatestJob() {
@@ -207,7 +193,7 @@ class BalanceReconciliationService {
                 .timestampStart(Instant.now())
                 .build();
 
-        getStatus().set(reconciliationJob.getStatus());
+        status.set(reconciliationJob.getStatus());
         return reconciliationJobRepository.save(reconciliationJob);
     }
 

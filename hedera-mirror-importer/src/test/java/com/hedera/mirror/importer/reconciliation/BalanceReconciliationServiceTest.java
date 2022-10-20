@@ -20,35 +20,6 @@ package com.hedera.mirror.importer.reconciliation;
  * ‍
  */
 
-import static com.hedera.mirror.common.domain.job.ReconciliationStatus.FAILURE_CRYPTO_TRANSFERS;
-import static com.hedera.mirror.common.domain.job.ReconciliationStatus.FAILURE_FIFTY_BILLION;
-import static com.hedera.mirror.common.domain.job.ReconciliationStatus.FAILURE_TOKEN_TRANSFERS;
-import static com.hedera.mirror.common.domain.job.ReconciliationStatus.SUCCESS;
-import static com.hedera.mirror.common.domain.job.ReconciliationStatus.UNKNOWN;
-import static com.hedera.mirror.importer.reconciliation.BalanceReconciliationService.FIFTY_BILLION_HBARS;
-import static com.hedera.mirror.importer.reconciliation.BalanceReconciliationService.METRIC;
-import static com.hedera.mirror.importer.reconciliation.BalanceReconciliationService.TokenAccountId;
-import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties.RemediationStrategy.ACCUMULATE;
-import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties.RemediationStrategy.FAIL;
-import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties.RemediationStrategy.RESET;
-import static org.assertj.core.api.Assertions.assertThat;
-
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.MeterRegistry;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-
-import lombok.CustomLog;
-import lombok.RequiredArgsConstructor;
-import org.assertj.core.api.InstanceOfAssertFactories;
-import org.assertj.core.api.ObjectAssert;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.hedera.mirror.common.domain.DomainBuilder;
 import com.hedera.mirror.common.domain.balance.AccountBalance;
 import com.hedera.mirror.common.domain.balance.AccountBalanceFile;
@@ -63,8 +34,25 @@ import com.hedera.mirror.importer.IntegrationTest;
 import com.hedera.mirror.importer.repository.ReconciliationJobRepository;
 import com.hedera.mirror.importer.repository.RecordFileRepository;
 import com.hedera.mirror.importer.util.Utility;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import lombok.RequiredArgsConstructor;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.assertj.core.api.ObjectAssert;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionTemplate;
 
-@CustomLog
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+
+import static com.hedera.mirror.common.domain.job.ReconciliationStatus.*;
+import static com.hedera.mirror.importer.reconciliation.BalanceReconciliationService.*;
+import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties.RemediationStrategy.*;
+import static org.assertj.core.api.Assertions.assertThat;
+
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 class BalanceReconciliationServiceTest extends IntegrationTest {
 
@@ -84,8 +72,7 @@ class BalanceReconciliationServiceTest extends IntegrationTest {
         reconciliationProperties.setRemediationStrategy(FAIL);
         reconciliationProperties.setStartDate(Instant.EPOCH);
         reconciliationProperties.setToken(true);
-        reconciliationService.getStatus().set(UNKNOWN);
-        log.info("meterRegistry - {}", System.identityHashCode(meterRegistry));
+        reconciliationService.status.set(UNKNOWN);
     }
 
     @Test
