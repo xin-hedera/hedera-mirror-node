@@ -35,9 +35,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+
+import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.assertj.core.api.ObjectAssert;
@@ -61,6 +64,7 @@ import com.hedera.mirror.importer.repository.ReconciliationJobRepository;
 import com.hedera.mirror.importer.repository.RecordFileRepository;
 import com.hedera.mirror.importer.util.Utility;
 
+@CustomLog
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 class BalanceReconciliationServiceTest extends IntegrationTest {
 
@@ -81,6 +85,7 @@ class BalanceReconciliationServiceTest extends IntegrationTest {
         reconciliationProperties.setStartDate(Instant.EPOCH);
         reconciliationProperties.setToken(true);
         reconciliationService.status.set(UNKNOWN);
+        log.info("meterRegistry - {}", System.identityHashCode(meterRegistry));
     }
 
     @Test

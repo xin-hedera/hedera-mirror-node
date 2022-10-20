@@ -22,19 +22,25 @@ package com.hedera.mirror.importer.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import javax.persistence.EntityManager;
+
+import lombok.CustomLog;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.transaction.support.TransactionOperations;
 
 import com.hedera.mirror.common.domain.DomainBuilder;
 
+@CustomLog
 @TestConfiguration
 public class IntegrationTestConfiguration {
 
     @Bean
     MeterRegistry meterRegistry() {
-        return new SimpleMeterRegistry();
+        var registry = new SimpleMeterRegistry();
+        log.info("integration test simple meter registry - {}", System.identityHashCode(registry));
+        return registry;
     }
 
     @Bean
