@@ -33,19 +33,18 @@ import static com.hedera.mirror.importer.reconciliation.ReconciliationProperties
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Uninterruptibles;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Metrics;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import javax.inject.Named;
 
+import io.opencensus.metrics.MetricRegistry;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -63,6 +62,7 @@ import com.hedera.mirror.common.util.DomainUtils;
 import com.hedera.mirror.importer.repository.AccountBalanceFileRepository;
 import com.hedera.mirror.importer.repository.ReconciliationJobRepository;
 import com.hedera.mirror.importer.repository.RecordFileRepository;
+import software.amazon.awssdk.metrics.MetricRecord;
 
 @Log4j2
 @Named
@@ -94,12 +94,13 @@ class BalanceReconciliationService {
     final AtomicReference<ReconciliationStatus> status = Metrics.gauge(METRIC, new AtomicReference<>(UNKNOWN),
             s -> {
                 var val = s.get().ordinal();
-                log.info("status gauge - {}", val);
+                log.info("read status gauge - {}", val);
                 return val;
             });
 
     private final AccountBalanceFileRepository accountBalanceFileRepository;
     private final JdbcOperations jdbcOperations;
+    private final MeterRegistry meterRegistry;
     private final RecordFileRepository recordFileRepository;
     private final ReconciliationProperties reconciliationProperties;
     private final ReconciliationJobRepository reconciliationJobRepository;
@@ -171,6 +172,9 @@ class BalanceReconciliationService {
             reconciliationJob.setTimestampEnd(Instant.now());
             reconciliationJobRepository.save(reconciliationJob);
             status.set(reconciliationJob.getStatus());
+
+            // debug
+            log.info("Value set - {}", meterRegistry.find(METRIC).gauges().stream().toList().get(0).value());
         }
     }
 
