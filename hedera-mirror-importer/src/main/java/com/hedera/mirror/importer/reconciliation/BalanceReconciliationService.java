@@ -171,8 +171,8 @@ class BalanceReconciliationService {
         } finally {
             reconciliationJob.setTimestampEnd(Instant.now());
             reconciliationJobRepository.save(reconciliationJob);
-            log.info("job status - {}", reconciliationJob.getStatus());
             status.set(reconciliationJob.getStatus());
+            log.info("job status - {}, atomic reference value - {}", reconciliationJob.getStatus(), status.get());
 
             // debug
             log.info("Value set - {}", meterRegistry.find(METRIC).gauges().stream().toList().get(0).value());
