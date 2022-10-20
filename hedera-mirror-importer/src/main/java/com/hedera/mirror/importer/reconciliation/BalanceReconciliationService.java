@@ -94,7 +94,7 @@ class BalanceReconciliationService {
     final AtomicReference<ReconciliationStatus> status = Metrics.gauge(METRIC, new AtomicReference<>(UNKNOWN),
             s -> {
                 var val = s.get().ordinal();
-                log.info("read status gauge - {}", val);
+                log.info("read status gauge - {}, object id - {}", val, System.identityHashCode(s));
                 return val;
             });
 
@@ -172,7 +172,8 @@ class BalanceReconciliationService {
             reconciliationJob.setTimestampEnd(Instant.now());
             reconciliationJobRepository.save(reconciliationJob);
             status.set(reconciliationJob.getStatus());
-            log.info("job status - {}, atomic reference value - {}", reconciliationJob.getStatus(), status.get());
+            log.info("job status - {}, atomic reference value - {}, status id - {}", reconciliationJob.getStatus(),
+                    status.get(), System.identityHashCode(status));
 
             // debug
             log.info("Value set - {}", meterRegistry.find(METRIC).gauges().stream().toList().get(0).value());
