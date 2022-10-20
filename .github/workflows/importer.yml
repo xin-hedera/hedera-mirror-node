@@ -33,7 +33,8 @@ jobs:
           java-version: 17
 
       - name: Maven verify
-        run: ./mvnw -Dtest=BalanceReconciliationServiceTest test -pl "${MODULE}" -Dspring.profiles.active=${{ matrix.schema }}
+#        run: ./mvnw -Dtest=BalanceReconciliationServiceTest test -pl "${MODULE}" -Dspring.profiles.active=${{ matrix.schema }}
+        run: ./mvnw verify -pl "${MODULE}" -Dspring.profiles.active=${{ matrix.schema }}
         working-directory: .
 
       - name: Upload coverage report
