@@ -171,6 +171,7 @@ class BalanceReconciliationService {
         } finally {
             reconciliationJob.setTimestampEnd(Instant.now());
             reconciliationJobRepository.save(reconciliationJob);
+            log.info("job status - {}", reconciliationJob.getStatus());
             status.set(reconciliationJob.getStatus());
 
             // debug
