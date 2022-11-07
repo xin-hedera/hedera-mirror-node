@@ -24,6 +24,7 @@ import static com.hedera.mirror.common.domain.entity.EntityType.ACCOUNT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -39,6 +40,7 @@ import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import java.util.Optional;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -76,8 +78,7 @@ class TokenUpdateTransactionHandlerTest extends AbstractTransactionHandlerTest {
     @Override
     protected TransactionHandler getTransactionHandler() {
         recordParserProperties = new RecordParserProperties();
-        return new TokenUpdateTransactionHandler(entityIdService, entityListener, nftRepository,
-                recordParserProperties);
+        return new TokenUpdateTransactionHandler(entityIdService, nftRepository, recordParserProperties);
     }
 
     @Override
@@ -173,8 +174,8 @@ class TokenUpdateTransactionHandlerTest extends AbstractTransactionHandlerTest {
         var transaction = domainBuilder.transaction()
                 .customize(t -> t.consensusTimestamp(timestamp).entityId(tokenId)).get();
         when(entityIdService.lookup(any(AccountID.class))).thenReturn(EntityIdEndec.decode(10, EntityType.ACCOUNT));
-        transactionHandler.updateTransaction(transaction, recordItem);
-        assertTokenUpdate(timestamp, tokenId, id -> assertEquals(10L, id));
+        var actualEntity = transactionHandler.updateTransaction(transaction, recordItem);
+        assertTokenUpdate(actualEntity, timestamp, tokenId, id -> assertEquals(10L, id));
     }
 
     @Test
@@ -189,8 +190,8 @@ class TokenUpdateTransactionHandlerTest extends AbstractTransactionHandlerTest {
                 customize(t -> t.consensusTimestamp(timestamp).entityId(tokenId)).get();
         when(entityIdService.lookup(AccountID.newBuilder().setAlias(alias).build()))
                 .thenReturn(EntityIdEndec.decode(10L, ACCOUNT));
-        transactionHandler.updateTransaction(transaction, recordItem);
-        assertTokenUpdate(timestamp, tokenId, id -> assertEquals(10L, id));
+        var actualEntity = transactionHandler.updateTransaction(transaction, recordItem);
+        assertTokenUpdate(actualEntity, timestamp, tokenId, id -> assertEquals(10L, id));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -226,13 +227,15 @@ class TokenUpdateTransactionHandlerTest extends AbstractTransactionHandlerTest {
                 customize(t -> t.consensusTimestamp(timestamp).entityId(tokenId)).get();
         when(entityIdService.lookup(AccountID.newBuilder().setAlias(alias).build()))
                 .thenThrow(new AliasNotFoundException("alias", ACCOUNT));
-        transactionHandler.updateTransaction(transaction, recordItem);
-        assertTokenUpdate(timestamp, tokenId, Assertions::assertNull);
+        var actualEntity = transactionHandler.updateTransaction(transaction, recordItem);
+        assertTokenUpdate(actualEntity, timestamp, tokenId, Assertions::assertNull);
     }
 
-    void assertTokenUpdate(long timestamp, EntityId tokenId, Consumer<Long> assertAutoRenewAccountId) {
-        verify(entityListener).onEntity(assertArg(t -> assertThat(t)
-                .isNotNull()
+    void assertTokenUpdate(Optional<Entity> actualEntity, long timestamp, EntityId tokenId,
+                           Consumer<Long> assertAutoRenewAccountId) {
+        verify(entityListener, never()).onEntity(any(Entity.class));
+        assertThat(actualEntity)
+                .get()
                 .satisfies(e -> assertAutoRenewAccountId.accept(e.getAutoRenewAccountId()))
                 .satisfies(e -> assertThat(e.getAutoRenewPeriod()).isPositive())
                 .returns(null, Entity::getCreatedTimestamp)
@@ -248,6 +251,6 @@ class TokenUpdateTransactionHandlerTest extends AbstractTransactionHandlerTest {
                 .returns(tokenId.getRealmNum(), Entity::getRealm)
                 .returns(tokenId.getShardNum(), Entity::getShard)
                 .returns(EntityType.TOKEN, Entity::getType)
-                .returns(Range.atLeast(timestamp), Entity::getTimestampRange)));
+                .returns(Range.atLeast(timestamp), Entity::getTimestampRange);
     }
 }

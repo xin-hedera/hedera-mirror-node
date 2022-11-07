@@ -32,7 +32,6 @@ import com.hedera.mirror.common.domain.transaction.TransactionType;
 import com.hedera.mirror.common.util.DomainUtils;
 import com.hedera.mirror.importer.domain.EntityIdService;
 import com.hedera.mirror.importer.parser.record.RecordParserProperties;
-import com.hedera.mirror.importer.parser.record.entity.EntityListener;
 import com.hedera.mirror.importer.repository.NftRepository;
 
 @Named
@@ -40,9 +39,9 @@ class TokenUpdateTransactionHandler extends AbstractEntityCrudTransactionHandler
 
     private final NftRepository nftRepository;
 
-    TokenUpdateTransactionHandler(EntityIdService entityIdService, EntityListener entityListener,
-                                  NftRepository nftRepository, RecordParserProperties recordParserProperties) {
-        super(entityIdService, entityListener, recordParserProperties, TransactionType.TOKENUPDATE);
+    TokenUpdateTransactionHandler(EntityIdService entityIdService, NftRepository nftRepository,
+                                  RecordParserProperties recordParserProperties) {
+        super(entityIdService, recordParserProperties, TransactionType.TOKENUPDATE);
         this.nftRepository = nftRepository;
     }
 
@@ -77,7 +76,6 @@ class TokenUpdateTransactionHandler extends AbstractEntityCrudTransactionHandler
         }
 
         updateTreasury(recordItem);
-        entityListener.onEntity(entity);
     }
 
     private void updateTreasury(RecordItem recordItem) {
