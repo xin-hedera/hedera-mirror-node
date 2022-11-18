@@ -35,7 +35,7 @@ RUN apk add --no-cache \
     tar xzf "v${VERSION}.tar.gz" && \
     cd "citus-${VERSION}" && \
    ./configure --with-security-flags && \
-    make install && \
+    make -j$(nproc) install && \
     cd .. && \
     rm -rf "citus-${VERSION}" "v${VERSION}.tar.gz" && \
     apk del builddeps
@@ -49,7 +49,7 @@ RUN apk add --no-cache --virtual .fetch-deps build-base ca-certificates clang ll
     && cd pg_cron-$PG_CRON_VERSION \
     && sed -i.bak -e 's/-Werror//g' Makefile \
     && sed -i.bak -e 's/-Wno-implicit-fallthrough//g' Makefile \
-    && make && make install \
+    && make -j$(nproc) && make install \
     && cd .. && rm -rf pg_cron.tgz && rm -rf pg_cron-* \
     && apk del .fetch-deps
 
@@ -57,7 +57,7 @@ RUN apk add --no-cache --virtual .fetch-deps build-base clang llvm13 \
     && wget -O pg_partman.tar.gz "https://github.com/pgpartman/pg_partman/archive/v$PG_PARTMAN_VERSION.tar.gz" \
     && tar xvzf pg_partman.tar.gz \
     && cd pg_partman-$PG_PARTMAN_VERSION \
-    && make && make install \
+    && make -j$(nproc) && make install \
     && cd .. && rm -rf pg_partman.tar.gz  pg_partman-* \
     && apk del .fetch-deps
 
