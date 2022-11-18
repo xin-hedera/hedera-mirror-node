@@ -1,10 +1,9 @@
 # This file is auto generated from it's template,
 # see citusdata/tools/packaging_automation/templates/docker/alpine/alpine.tmpl.dockerfile.
 FROM postgres:14.5-alpine
-ARG VERSION=11.1.4
 ARG PG_CRON_VERSION=1.4.2
 ARG PG_PARTMAN_VERSION=4.7.1
-ARG DB='mirror_node'
+ARG VERSION=11.1.4
 
 LABEL maintainer="Citus Data https://citusdata.com" \
       org.label-schema.name="Citus" \
@@ -17,7 +16,7 @@ LABEL maintainer="Citus Data https://citusdata.com" \
 
 # Build citus and delete all used libraries. Warning: Libraries installed in this section will be deleted after build completion
 RUN apk add --no-cache \
-            --virtual builddeps \
+        --virtual builddeps \
         build-base \
         krb5-dev \
         curl \
@@ -44,34 +43,32 @@ RUN apk add --no-cache \
 #--------End of Citus Build
 
 # Install pg_cron and pg_partman
-RUN apk add --no-cache --virtual .fetch-deps build-base ca-certificates clang-dev llvm13 openssl tar \
+RUN apk add --no-cache --virtual .fetch-deps build-base ca-certificates clang llvm13 openssl \
     && wget -O /pg_cron.tar.gz https://github.com/citusdata/pg_cron/archive/v$PG_CRON_VERSION.tar.gz \
-    && mkdir -p pg_cron \
     && tar xvzf pg_cron.tar.gz \
     && cd pg_cron-$PG_CRON_VERSION \
     && sed -i.bak -e 's/-Werror//g' Makefile \
     && sed -i.bak -e 's/-Wno-implicit-fallthrough//g' Makefile \
     && make && make install \
-    && cd .. && rm -rf pg_cron.tgz && rm -rf pg_cron-*
+    && cd .. && rm -rf pg_cron.tgz && rm -rf pg_cron-* \
+    && apk del .fetch-deps
 
-RUN apk add --no-cache --virtual .build-deps \
+RUN apk add --no-cache --virtual .fetch-deps build-base clang llvm13 \
     && wget -O pg_partman.tar.gz "https://github.com/pgpartman/pg_partman/archive/v$PG_PARTMAN_VERSION.tar.gz" \
     && tar xvzf pg_partman.tar.gz \
     && cd pg_partman-$PG_PARTMAN_VERSION \
-    && make \
-    && make install \
-    && cd .. \
-    && rm -rf pg_partman.tar.gz  pg_partman-* \
-    && apk del .fetch-deps .build-deps
-
+    && make && make install \
+    && cd .. && rm -rf pg_partman.tar.gz  pg_partman-* \
+    && apk del .fetch-deps
 
 # add citus, pg_cron, pg_partman_bgw to default PostgreSQL config
 RUN echo "shared_preload_libraries='citus,pg_cron,pg_partman_bgw'" >> /usr/local/share/postgresql/postgresql.conf.sample
 RUN echo "max_locks_per_transaction = 1024" >> /usr/local/share/postgresql/postgresql.conf.sample
-RUN echo "cron.database_name = '${DB}'" >> /usr/local/share/postgresql/postgresql.conf.sample
+RUN echo "cron.database_name = 'pg_cron'" >> /usr/local/share/postgresql/postgresql.conf.sample
 
 # add scripts to run after initdb
 COPY 001-create-citus-extension.sql /docker-entrypoint-initdb.d/
+COPY 002-create-pg-cron-database.sql /docker-entrypoint-initdb.d/
 
 # add health check script
 COPY pg_healthcheck /
