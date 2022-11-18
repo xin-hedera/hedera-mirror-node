@@ -31,6 +31,25 @@ import {getPoolClass} from '../utils';
 const {db: defaultDbConfig} = config;
 const Pool = await getPoolClass();
 
+const cleanupSql = {
+  v1: fs.readFileSync(
+    path.join(
+      getModuleDirname(import.meta),
+      '..',
+      '..',
+      'hedera-mirror-importer',
+      'src',
+      'test',
+      'resources',
+      'db',
+      'scripts',
+      'cleanup.sql'
+    ),
+    'utf8'
+  ),
+  v2: null,
+};
+
 const v1SchemaConfigs = {
   baselineVersion: '0',
   locations: 'hedera-mirror-importer/src/main/resources/db/migration/v1',
@@ -40,8 +59,9 @@ const v2SchemaConfigs = {
   locations: 'hedera-mirror-importer/src/main/resources/db/migration/v2',
 };
 
-// if v2 schema is set in env use it, else default to v1
-const schemaConfigs = process.env.MIRROR_NODE_SCHEMA === 'v2' ? v2SchemaConfigs : v1SchemaConfigs;
+const isV2Schema = () => process.env.MIRROR_NODE_SCHEMA === 'v2';
+
+const schemaConfigs = isV2Schema() ? v2SchemaConfigs : v1SchemaConfigs;
 
 const dbUrlRegex = /^postgresql:\/\/(.*):(.*)@(.*):(\d+)/;
 
@@ -53,6 +73,11 @@ const extractDbConnectionParams = (url) => {
     host: found[3],
     port: found[4],
   };
+};
+
+const cleanUp = async () => {
+  const cleanupSql = await getCleanupSql();
+  await pool.query(cleanupSql);
 };
 
 const createPool = () => {
@@ -158,36 +183,34 @@ function V2CreateTempFolder(locations) {
   return dest;
 }
 
+const getCleanupSql = async () => {
+  if (!isV2Schema()) {
+    return cleanupSql.v1;
+  }
+
+  if (cleanupSql.v2) {
+    return cleanupSql.v2;
+  }
+
+  // The query returns the tables without partitions or the parent tables of the partitions. This is to reduce the
+  // extract amount of time caused by trying to delete from partitions. The cleanup sql for v2 is generated once for
+  // each jest worker, it's done this way because the query to find the correct table names is also slow.
+  const {rows} = await pool.queryQuietly(`
+	  select table_name
+	  from information_schema.tables
+	  left join time_partitions on partition::text = table_name::text
+	  where table_schema = 'public' and table_type <> 'VIEW'
+	    and table_name !~ '.*(flyway|transaction_type|citus_|_\\d+).*' and partition is null
+	  order by table_name`);
+  cleanupSql.v2 = rows.map((row) => `delete from ${row.table_name};`).join('\n');
+  return cleanupSql.v2;
+};
+
 const getMigratedFilename = () => path.join(process.env.MIGRATION_TMP_DIR, `.${process.env.JEST_WORKER_ID}.migrated`);
 
 const isDbMigrated = () => fs.existsSync(getMigratedFilename());
 
 const markDbMigrated = () => fs.closeSync(fs.openSync(getMigratedFilename(), 'w'));
-
-// const cleanupSql = fs.readFileSync(
-//   path.join(
-//     getModuleDirname(import.meta),
-//     '..',
-//     '..',
-//     'hedera-mirror-importer',
-//     'src',
-//     'test',
-//     'resources',
-//     'db',
-//     'scripts',
-//     'cleanup.sql'
-//   ),
-//   'utf8'
-// );
-
-const cleanupSql = fs.readFileSync(path.join(getModuleDirname(import.meta), 'delete.sql'), 'utf8');
-
-const cleanUp = async () => {
-  const startTime = new Date();
-  await pool.query(cleanupSql);
-  const elapsed = new Date() - startTime;
-  logger.info(`cleaned up db in ${elapsed} ms`);
-};
 
 export default {
   cleanUp,
