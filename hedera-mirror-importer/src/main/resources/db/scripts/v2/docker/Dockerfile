@@ -1,6 +1,7 @@
 # This file is auto generated from it's template,
 # see citusdata/tools/packaging_automation/templates/docker/alpine/alpine.tmpl.dockerfile.
 FROM postgres:14.5-alpine
+ARG PG_CRON_DB='mirror_node'
 ARG PG_CRON_VERSION=1.4.2
 ARG PG_PARTMAN_VERSION=4.7.1
 ARG VERSION=11.1.4
@@ -64,11 +65,10 @@ RUN apk add --no-cache --virtual .fetch-deps build-base clang llvm13 \
 # add citus, pg_cron, pg_partman_bgw to default PostgreSQL config
 RUN echo "shared_preload_libraries='citus,pg_cron,pg_partman_bgw'" >> /usr/local/share/postgresql/postgresql.conf.sample
 RUN echo "max_locks_per_transaction = 1024" >> /usr/local/share/postgresql/postgresql.conf.sample
-RUN echo "cron.database_name = 'pg_cron'" >> /usr/local/share/postgresql/postgresql.conf.sample
+RUN echo "cron.database_name = '${PG_CRON_DB}'" >> /usr/local/share/postgresql/postgresql.conf.sample
 
 # add scripts to run after initdb
 COPY 001-create-citus-extension.sql /docker-entrypoint-initdb.d/
-COPY 002-create-pg-cron-database.sql /docker-entrypoint-initdb.d/
 
 # add health check script
 COPY pg_healthcheck /

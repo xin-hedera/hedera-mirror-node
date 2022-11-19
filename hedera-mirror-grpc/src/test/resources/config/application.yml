@@ -47,8 +47,8 @@ spring:
       cronSchedule: "'@daily'"
       db-name: ${hedera.mirror.grpc.db.name}
       db-user: ${hedera.mirror.grpc.db.username}
-      partitionIdInterval: "'10000'"
-      partitionStartDate: "'2 months'"
+      partitionIdInterval: "'1000000000'"
+      partitionStartDate: "'0 days'"
       partitionTimeInterval: "'1 year'"
       schema: public
       topicRunningHashV2AddedTimestamp: 0

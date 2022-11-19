@@ -52,11 +52,11 @@ const cleanupSql = {
 
 const v1SchemaConfigs = {
   baselineVersion: '0',
-  locations: 'hedera-mirror-importer/src/main/resources/db/migration/v1',
+  locations: '../hedera-mirror-importer/src/main/resources/db/migration/v1',
 };
 const v2SchemaConfigs = {
   baselineVersion: '1.999.999',
-  locations: 'hedera-mirror-importer/src/main/resources/db/migration/v2',
+  locations: '../hedera-mirror-importer/src/main/resources/db/migration/v2',
 };
 
 const isV2Schema = () => process.env.MIRROR_NODE_SCHEMA === 'v2';
@@ -107,8 +107,7 @@ const flywayMigrate = async () => {
   const exePath = path.join('.', 'node_modules', 'node-flywaydb', 'bin', 'flyway');
   const flywayDataPath = '.node-flywaydb';
   const flywayConfigPath = path.join(os.tmpdir(), `config_worker_${workerId}.json`); // store configs in temp dir
-  const scriptLocation = path.join('..', schemaConfigs.locations);
-  const locations = process.env.MIRROR_NODE_SCHEMA === 'v2' ? V2CreateTempFolder(scriptLocation) : scriptLocation;
+  const locations = getMigrationScriptLocation(schemaConfigs.locations);
 
   const flywayConfig = `{
     "flywayArgs": {
@@ -128,7 +127,7 @@ const flywayMigrate = async () => {
       "placeholders.db-name": "${dbName}",
       "placeholders.db-user": "${dbConnectionParams.user}",
       "placeholders.partitionIdInterval": "'1000000'",
-      "placeholders.partitionStartDate": "'0 day'",
+      "placeholders.partitionStartDate": "'0 days'",
       "placeholders.partitionTimeInterval": "'1 year'",
       "placeholders.topicRunningHashV2AddedTimestamp": 0,
       "placeholders.schema": "public",
@@ -161,27 +160,12 @@ const flywayMigrate = async () => {
 
   execSync(`node ${exePath} -c ${flywayConfigPath} migrate`, {stdio: 'inherit'});
 
-  if (process.env.MIRROR_NODE_SCHEMA === 'v2') {
+  if (isV2Schema()) {
     fs.rmSync(locations, {force: true, recursive: true});
   }
 
   markDbMigrated();
 };
-
-function V2CreateTempFolder(locations) {
-  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'migration-'));
-  logger.info(`Tmp directory for v2 migration - ${dest}`);
-  // Creating a temp folder without the repeatable partitioning file.
-  fs.readdirSync(locations)
-    .filter((file) => file !== 'R__maintain_partitions.sql' && file !== 'R__create_partitions.sql')
-    .forEach((file) => {
-      const srcFile = path.join(locations, file);
-      const dstFile = path.join(dest, file);
-      fs.copyFileSync(srcFile, dstFile);
-    });
-
-  return dest;
-}
 
 const getCleanupSql = async () => {
   if (!isV2Schema()) {
@@ -207,6 +191,25 @@ const getCleanupSql = async () => {
 };
 
 const getMigratedFilename = () => path.join(process.env.MIGRATION_TMP_DIR, `.${process.env.JEST_WORKER_ID}.migrated`);
+
+const getMigrationScriptLocation = (locations) => {
+  if (!isV2Schema()) {
+    return locations;
+  }
+
+  // Creating a temp directory for v2, without the repeatable partitioning file.
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'migration-scripts-'));
+  logger.info(`Created temp directory for v2 migration scripts - ${dest}`);
+  fs.readdirSync(locations)
+    .filter((filename) => filename !== 'R__maintain_partitions.sql' && filename !== 'R__create_partitions.sql')
+    .forEach((filename) => {
+      const srcFile = path.join(locations, filename);
+      const dstFile = path.join(dest, filename);
+      fs.copyFileSync(srcFile, dstFile);
+    });
+
+  return dest;
+};
 
 const isDbMigrated = () => fs.existsSync(getMigratedFilename());
 
