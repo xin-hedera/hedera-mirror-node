@@ -310,7 +310,6 @@
                                 <id>default-test</id>
                                 <configuration>
                                     <excludedGroups>largedbperf</excludedGroups>
-                                    <forkCount>2</forkCount>
                                 </configuration>
                             </execution>
                         </executions>
