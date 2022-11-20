@@ -131,6 +131,7 @@ const flywayMigrate = async () => {
       "placeholders.partitionTimeInterval": "'1 year'",
       "placeholders.topicRunningHashV2AddedTimestamp": 0,
       "placeholders.schema": "public",
+      "placeholders.shardCount": 2,
       "target": "latest",
       "url": "jdbc:postgresql://${dbConnectionParams.host}:${dbConnectionParams.port}/${dbName}",
       "user": "${dbConnectionParams.user}"

@@ -111,6 +111,7 @@ spring:
       partitionIdInterval: "'1000000'"
       partitionStartDate: "'3 years'"
       schema: ${hedera.mirror.importer.db.schema}
+      shardCount: 32
     user: ${hedera.mirror.importer.db.owner}
   jpa:
     properties:
