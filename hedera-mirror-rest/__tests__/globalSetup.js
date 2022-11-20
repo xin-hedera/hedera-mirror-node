@@ -70,7 +70,6 @@ const createDbContainer = async (maxWorkers) => {
     if (isV2Schema()) {
       // create citus extension
       const query = `create extension if not exists citus;
-         set citus.shard_count = 2;
          create schema if not exists partman authorization ${dbAdminUser};
          create extension if not exists pg_partman schema partman;
          alter schema partman owner to ${dbAdminUser};
