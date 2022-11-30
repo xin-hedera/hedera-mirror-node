@@ -123,7 +123,13 @@ data:
           select citus_add_node('${host}', ${POSTGRESQL_PORT_NUMBER});
 
           \c ${HEDERA_MIRROR_IMPORTER_DB_NAME}
-          insert into pg_dist_authinfo(nodeid, rolename, authinfo) values(${nodeid}, '${POSTGRES_USER}', 'password=${POSTGRES_PASSWORD}');
+          insert into pg_dist_authinfo(nodeid, rolename, authinfo) values
+            (${nodeid}, '${HEDERA_MIRROR_GRPC_DB_USERNAME}', 'password=${HEDERA_MIRROR_GRPC_DB_PASSWORD}'),
+            (${nodeid}, '${HEDERA_MIRROR_IMPORTER_DB_USERNAME}', 'password=${HEDERA_MIRROR_IMPORTER_DB_PASSWORD}'),
+            (${nodeid}, '${HEDERA_MIRROR_IMPORTER_DB_OWNER}', 'password=${HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD}'),
+            (${nodeid}, '${HEDERA_MIRROR_IMPORTER_DB_RESTUSERNAME}', 'password=${HEDERA_MIRROR_IMPORTER_DB_RESTPASSWORD}'),
+            (${nodeid}, '${HEDERA_MIRROR_ROSETTA_DB_USERNAME}', 'password=${HEDERA_MIRROR_ROSETTA_DB_PASSWORD}'),
+            (${nodeid}, '${HEDERA_MIRROR_WEB3_DB_USERNAME}', 'password=${HEDERA_MIRROR_WEB3_DB_PASSWORD}');
           select citus_add_node('${host}', ${POSTGRESQL_PORT_NUMBER});
     EOSQL
 
