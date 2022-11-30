@@ -91,26 +91,19 @@ data:
 
       # Setup coordinator
       psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" -p "${POSTGRESQL_PORT_NUMBER}" <<-EOSQL
-        create extension if not exists citus;
-        update pg_dist_node_metadata SET metadata=jsonb_insert(metadata, '{docker}', 'true');
-        insert into pg_dist_authinfo(nodeid, rolename, authinfo) values(1, '${POSTGRES_USER}', 'password=${POSTGRES_PASSWORD}');
         select citus_set_coordinator_host('${coordinator}', ${POSTGRESQL_PORT_NUMBER});
 
         \c ${HEDERA_MIRROR_IMPORTER_DB_NAME}
-        create extension if not exists citus;
-        insert into pg_dist_authinfo(nodeid, rolename, authinfo) values(1, '${POSTGRES_USER}', 'password=${POSTGRES_PASSWORD}');
         select citus_set_coordinator_host('${coordinator}', ${POSTGRESQL_PORT_NUMBER});
-        create user ${HEDERA_MIRROR_IMPORTER_DB_RESTUSERNAME} with login password '${HEDERA_MIRROR_IMPORTER_DB_RESTPASSWORD}' in role readonly;
     EOSQL
 
-      # Setup workers
+      # Add workers
       id=0
       replicas={{.Values.citus.readReplicas.replicaCount}}
       name="{{ include "postgresql.readReplica.fullname" .Subcharts.citus }}"
       echo "Adding ${replicas} workers"
 
       while [[ ${id} -lt ${replicas} ]]; do
-        nodeid=$((id + 2))
         host="${name}-${id}.${name}-hl.{{ .Release.Namespace }}.svc.cluster.local"
 
         until ( exec pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h "${host}" -p "${POSTGRESQL_PORT_NUMBER}" ); do
@@ -119,17 +112,9 @@ data:
         done
 
         psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" -p "${POSTGRESQL_PORT_NUMBER}" <<-EOSQL
-          insert into pg_dist_authinfo(nodeid, rolename, authinfo) values(${nodeid}, '${POSTGRES_USER}', 'password=${POSTGRES_PASSWORD}');
           select citus_add_node('${host}', ${POSTGRESQL_PORT_NUMBER});
 
           \c ${HEDERA_MIRROR_IMPORTER_DB_NAME}
-          insert into pg_dist_authinfo(nodeid, rolename, authinfo) values
-            (${nodeid}, '${HEDERA_MIRROR_GRPC_DB_USERNAME}', 'password=${HEDERA_MIRROR_GRPC_DB_PASSWORD}'),
-            (${nodeid}, '${HEDERA_MIRROR_IMPORTER_DB_USERNAME}', 'password=${HEDERA_MIRROR_IMPORTER_DB_PASSWORD}'),
-            (${nodeid}, '${HEDERA_MIRROR_IMPORTER_DB_OWNER}', 'password=${HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD}'),
-            (${nodeid}, '${HEDERA_MIRROR_IMPORTER_DB_RESTUSERNAME}', 'password=${HEDERA_MIRROR_IMPORTER_DB_RESTPASSWORD}'),
-            (${nodeid}, '${HEDERA_MIRROR_ROSETTA_DB_USERNAME}', 'password=${HEDERA_MIRROR_ROSETTA_DB_PASSWORD}'),
-            (${nodeid}, '${HEDERA_MIRROR_WEB3_DB_USERNAME}', 'password=${HEDERA_MIRROR_WEB3_DB_PASSWORD}');
           select citus_add_node('${host}', ${POSTGRESQL_PORT_NUMBER});
     EOSQL
 
@@ -137,20 +122,26 @@ data:
       done
     }
 
-    function setup_worker() {
-      psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" -p "${POSTGRESQL_PORT_NUMBER}" <<-EOSQL
-        create extension if not exists citus;
-        update pg_dist_node_metadata SET metadata=jsonb_insert(metadata, '{docker}', 'true');
+    # Common setup for coordinator and workers
+    psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${POSTGRES_DB}" -p "${POSTGRESQL_PORT_NUMBER}" <<-EOSQL
+      create extension if not exists citus;
+      update pg_dist_node_metadata SET metadata=jsonb_insert(metadata, '{docker}', 'true');
+      insert into pg_dist_authinfo(nodeid, rolename, authinfo) values(0, '${POSTGRES_USER}', 'password=${POSTGRES_PASSWORD}');
 
-        \c ${HEDERA_MIRROR_IMPORTER_DB_NAME}
-        create extension if not exists citus;
-        create user ${HEDERA_MIRROR_IMPORTER_DB_RESTUSERNAME} with login password '${HEDERA_MIRROR_IMPORTER_DB_RESTPASSWORD}' in role readonly;
+      \c ${HEDERA_MIRROR_IMPORTER_DB_NAME}
+      create extension if not exists citus;
+      create user ${HEDERA_MIRROR_IMPORTER_DB_RESTUSERNAME} with login password '${HEDERA_MIRROR_IMPORTER_DB_RESTPASSWORD}' in role readonly;
+      insert into pg_dist_authinfo(nodeid, rolename, authinfo) values
+        (0, '${POSTGRES_USER}', 'password=${POSTGRES_PASSWORD}'),
+        (0, '${HEDERA_MIRROR_GRPC_DB_USERNAME}', 'password=${HEDERA_MIRROR_GRPC_DB_PASSWORD}'),
+        (0, '${HEDERA_MIRROR_IMPORTER_DB_USERNAME}', 'password=${HEDERA_MIRROR_IMPORTER_DB_PASSWORD}'),
+        (0, '${HEDERA_MIRROR_IMPORTER_DB_OWNER}', 'password=${HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD}'),
+        (0, '${HEDERA_MIRROR_IMPORTER_DB_RESTUSERNAME}', 'password=${HEDERA_MIRROR_IMPORTER_DB_RESTPASSWORD}'),
+        (0, '${HEDERA_MIRROR_ROSETTA_DB_USERNAME}', 'password=${HEDERA_MIRROR_ROSETTA_DB_PASSWORD}'),
+        (0, '${HEDERA_MIRROR_WEB3_DB_USERNAME}', 'password=${HEDERA_MIRROR_WEB3_DB_PASSWORD}');
     EOSQL
-    }
 
     if [[ "${POSTGRES_REPLICATION_MODE}" = "master" ]]; then
       setup_coordinator
-    else
-      setup_worker
     fi
   {{- end }}
