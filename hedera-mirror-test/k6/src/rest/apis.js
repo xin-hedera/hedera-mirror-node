@@ -28,7 +28,7 @@ import {setupTestParameters} from './test/bootstrapEnvParameters.js';
 function handleSummary(data) {
   return {
     stdout: textSummary(data, {indent: ' ', enableColors: true}),
-    '/data/reports/report.md': markdownReport(data, true, scenarios),
+    '/share/reports/report.md': markdownReport(data, true, scenarios),
   };
 }
 
