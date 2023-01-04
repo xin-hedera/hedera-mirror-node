@@ -37,7 +37,7 @@ import com.hedera.mirror.common.domain.StreamType;
 import com.hedera.mirror.importer.config.IntegrationTestConfiguration;
 import com.hedera.mirror.importer.parser.domain.RecordFileBuilder;
 
-@ActiveProfiles("performance")
+@ActiveProfiles({"performance", "v2"})
 @CustomLog
 @Import(IntegrationTestConfiguration.class)
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
