@@ -22,6 +22,9 @@ package com.hedera.mirror.importer.parser.record;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import java.util.concurrent.TimeUnit;
+
+import com.hedera.mirror.importer.parser.domain.RecordItemBuilder;
+import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,7 @@ import com.hedera.mirror.importer.config.IntegrationTestConfiguration;
 import com.hedera.mirror.importer.parser.domain.RecordFileBuilder;
 
 @ActiveProfiles("performance")
+@CustomLog
 @Import(IntegrationTestConfiguration.class)
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 @SpringBootTest
@@ -48,6 +52,8 @@ class RecordFileParserPerformanceTest {
     @Test
     void scenarios() {
         long interval = StreamType.RECORD.getFileCloseInterval().toMillis();
+        long intervalNanos = interval * 1000_000L;
+        log.info("interval in nanos - {}", intervalNanos);
         long duration = performanceProperties.getDuration().toMillis();
         long startTime = System.currentTimeMillis();
         long endTime = startTime;
@@ -58,10 +64,13 @@ class RecordFileParserPerformanceTest {
             recordFile.recordItems(i -> i.count(count).entities(p.getEntities()).type(p.getType()));
         });
 
+        long count = 0;
         while (endTime - startTime < duration) {
             recordFileParser.parse(recordFile.build());
+            count++;
+            recordFileBuilder.getRecordItemBuilder().setElapsed(intervalNanos * count);
 
-            long sleep = interval - (System.currentTimeMillis() - endTime);
+            long sleep = (interval - (System.currentTimeMillis() - endTime)) / 100;
             if (sleep > 0) {
                 Uninterruptibles.sleepUninterruptibly(sleep, TimeUnit.MILLISECONDS);
             }

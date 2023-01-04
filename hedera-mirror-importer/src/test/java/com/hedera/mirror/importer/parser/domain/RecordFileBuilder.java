@@ -51,6 +51,7 @@ import com.hedera.mirror.importer.util.Utility;
 public class RecordFileBuilder {
 
     private final DomainBuilder domainBuilder;
+    @Getter
     private final RecordItemBuilder recordItemBuilder;
 
     public Builder recordFile() {

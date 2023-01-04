@@ -137,6 +137,7 @@ public class RecordItemBuilder {
 
     private final Map<TransactionType, Supplier<Builder>> builders = new HashMap<>();
     private final AtomicLong id = new AtomicLong(1000L);
+    private final AtomicLong elapsed = new AtomicLong(0);
     private final Instant now = Instant.now();
     private final SecureRandom random = new SecureRandom();
 
@@ -671,7 +672,11 @@ public class RecordItemBuilder {
     }
 
     public Timestamp timestamp() {
-        return Utility.instantToTimestamp(now.plusSeconds(id()));
+        return Utility.instantToTimestamp(now.plusNanos(elapsed.getAndIncrement()));
+    }
+
+    public void setElapsed(long nanos) {
+        elapsed.set(nanos);
     }
 
     public TokenID tokenId() {
