@@ -23,7 +23,9 @@ package com.hedera.mirror.importer.parser.record;
 import com.google.common.util.concurrent.Uninterruptibles;
 import java.util.concurrent.TimeUnit;
 
+import com.hedera.mirror.common.domain.transaction.RecordFile;
 import com.hedera.mirror.importer.parser.domain.RecordItemBuilder;
+import com.hedera.mirror.importer.repository.RecordFileRepository;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Tag;
@@ -48,27 +50,32 @@ class RecordFileParserPerformanceTest {
     private final ParserPerformanceProperties performanceProperties;
     private final RecordFileParser recordFileParser;
     private final RecordFileBuilder recordFileBuilder;
+    private final RecordFileRepository recordFileRepository;
 
     @Test
     void scenarios() {
         long interval = StreamType.RECORD.getFileCloseInterval().toMillis();
-        long intervalNanos = interval * 1000_000L;
-        log.info("interval in nanos - {}", intervalNanos);
+        long intervalNanos = interval * 1_000_000L;
+        log.info("Interval in nanos - {}", intervalNanos);
         long duration = performanceProperties.getDuration().toMillis();
         long startTime = System.currentTimeMillis();
         long endTime = startTime;
-        var recordFile = recordFileBuilder.recordFile();
+        var recordItemBuilder = recordFileBuilder.getRecordItemBuilder();
+        recordFileRepository.findLatest()
+                .map(RecordFile::getConsensusStart)
+                .ifPresent(consensusStart-> recordItemBuilder.resetStartTime(consensusStart + intervalNanos));
+        var builder = recordFileBuilder.recordFile();
 
         performanceProperties.getTransactions().forEach(p -> {
             int count = (int) (p.getTps() * interval / 1000);
-            recordFile.recordItems(i -> i.count(count).entities(p.getEntities()).type(p.getType()));
+            builder.recordItems(i -> i.count(count).entities(p.getEntities()).type(p.getType()));
         });
 
-        long count = 0;
         while (endTime - startTime < duration) {
-            recordFileParser.parse(recordFile.build());
-            count++;
-            recordFileBuilder.getRecordItemBuilder().setElapsed(intervalNanos * count);
+            var recordFile = builder.build();
+            recordFile.setLoadStart(endTime / 1000);
+            recordFileParser.parse(recordFile);
+            recordItemBuilder.elapse(intervalNanos - recordFile.getCount());
 
             long sleep = (interval - (System.currentTimeMillis() - endTime)) / 100;
             if (sleep > 0) {

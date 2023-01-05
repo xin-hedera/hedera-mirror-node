@@ -675,8 +675,12 @@ public class RecordItemBuilder {
         return Utility.instantToTimestamp(now.plusNanos(elapsed.getAndIncrement()));
     }
 
-    public void setElapsed(long nanos) {
-        elapsed.set(nanos);
+    public void resetStartTime(long nanos) {
+        elapsed.set(nanos - (now.getEpochSecond() * 1_000_000_000 + now.getNano()));
+    }
+
+    public void elapse(long nanos) {
+        elapsed.getAndAdd(nanos);
     }
 
     public TokenID tokenId() {
