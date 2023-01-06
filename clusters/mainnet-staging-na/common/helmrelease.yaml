@@ -10,7 +10,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: hedera-mirror-node
-      version: '0.71.0-rc1'
+      version: '0.72.0-rc1'
   dependsOn:
     - name: testkube
       namespace: testkube
@@ -23,28 +23,9 @@ spec:
     crds: CreateReplace
     remediation:
       retries: 10
-  valuesFrom:
-    - kind: Secret
-      name: mirror
   values:
-    prometheus:
-      prometheus:
-        prometheusSpec:
-          externalLabels:
-            cluster: mainnet-staging-na
-          replicaExternalLabelName: __replica__
-    promtail:
-      config:
-        snippets:
-          extraClientConfigs: |
-            external_labels:
-              cluster: mainnet-staging-na
     testkube:
       enabled: true
       test:
         target:
           namespace: mainnet
-    traefik:
-      service:
-        annotations:
-          cloud.google.com/neg: '{ "exposed_ports":{ "443":{"name": "mirrornode-mainnet-staging-na"} } }'

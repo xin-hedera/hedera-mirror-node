@@ -13,7 +13,7 @@ spec:
       valuesFiles:
         - values.yaml
         - values-prod.yaml
-      version: '0.71.0-rc1'
+      version: '0.72.0-rc1'
   dependsOn:
     - name: mirror
       namespace: common
@@ -21,23 +21,22 @@ spec:
     crds: CreateReplace
   interval: 90s
   test:
-    enable: true
+    enable: false
     timeout: 25m
   timeout: 48h
   upgrade:
     cleanupOnFail: true
     crds: CreateReplace
-  valuesFrom:
-    - kind: Secret
-      name: mirror
   values:
     importer:
+      enabled: false
       env:
         HEDERA_MIRROR_IMPORTER_NETWORK: "MAINNET"
         HEDERA_MIRROR_IMPORTER_PARSER_RECORD_ENTITY_PERSIST_TRANSACTIONHASH: "true"
         HEDERA_MIRROR_IMPORTER_PARSER_RECORD_SIDECAR_ENABLED: "true"
         HEDERA_MIRROR_IMPORTER_START_DATE: "1970-01-01T00:00:00.000000000Z"
     monitor:
+      enabled: false
       env:
         HEDERA_MIRROR_MONITOR_NETWORK: "MAINNET"
         HEDERA_MIRROR_MONITOR_PUBLISH_SCENARIOS_PINGER_PROPERTIES_TOPICID: "0.0.798453"
@@ -47,10 +46,15 @@ spec:
           enabled: false
         MonitorSubscribeLatency:
           enabled: false
+    grpc:
+      enabled: false
     postgresql:
       enabled: false
     redis:
       enabled: false
     rosetta:
+      enabled: false
       env:
         HEDERA_MIRROR_ROSETTA_NETWORK: "mainnet"
+    web3:
+      enabled: false
