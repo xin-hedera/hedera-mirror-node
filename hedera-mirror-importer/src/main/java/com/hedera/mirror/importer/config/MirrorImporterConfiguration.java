@@ -23,6 +23,7 @@ package com.hedera.mirror.importer.config;
 import com.hedera.mirror.common.domain.transaction.TransactionHash;
 import com.hedera.mirror.importer.parser.batch.BatchInserter;
 
+import com.hedera.mirror.importer.parser.batch.TransactionHashBatchPersister;
 import io.micrometer.core.instrument.MeterRegistry;
 import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
@@ -103,7 +104,7 @@ public class MirrorImporterConfiguration {
     @Profile("!v2")
     BatchPersister transactionHashV1BatchPersister(DataSource dataSource, MeterRegistry meterRegistry,
                                                    CommonParserProperties parserProperties) {
-        return new BatchInserter(TransactionHash.class, dataSource, meterRegistry, parserProperties, "transaction_hash_sharded");
+        return new TransactionHashBatchPersister(dataSource, meterRegistry, parserProperties);
     }
 
     @Configuration

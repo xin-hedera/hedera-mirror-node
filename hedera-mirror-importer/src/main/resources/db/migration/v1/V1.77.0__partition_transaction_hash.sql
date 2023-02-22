@@ -40,3 +40,37 @@ create index if not exists transaction_hash_sharded__hash on transaction_hash_sh
 
 create or replace view transaction_hash as
 select * from transaction_hash_old union all select * from transaction_hash_sharded;
+
+
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_00;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_01;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_02;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_03;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_04;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_05;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_06;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_07;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_08;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_09;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_10;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_11;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_12;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_13;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_14;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_15;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_16;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_17;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_18;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_19;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_20;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_21;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_22;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_23;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_24;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_25;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_26;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_27;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_28;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_29;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_30;
+alter table transaction_hash_sharded detach partition transaction_hash_sharded_31;

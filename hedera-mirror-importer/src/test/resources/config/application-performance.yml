@@ -5,10 +5,15 @@ hedera:
         host: 127.0.0.1
         port: 5432
         name: mirror_node
-        username: mirror_node
-        password: mirror_node_pass
+        username: mirror_importer
+        password: mirror_importer_pass
+        owner: mirror_node
+        ownerPassword: mirror_node_pass
       parser:
         record:
+          entity:
+            persist:
+              transactionHash: true
           performance:
             transactions:
               - entities: 1
