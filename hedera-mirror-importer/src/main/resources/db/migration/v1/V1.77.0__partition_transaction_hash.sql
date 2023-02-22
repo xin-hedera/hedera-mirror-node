@@ -41,7 +41,6 @@ create index if not exists transaction_hash_sharded__hash on transaction_hash_sh
 create or replace view transaction_hash as
 select * from transaction_hash_old union all select * from transaction_hash_sharded;
 
-
 alter table transaction_hash_sharded detach partition transaction_hash_sharded_00;
 alter table transaction_hash_sharded detach partition transaction_hash_sharded_01;
 alter table transaction_hash_sharded detach partition transaction_hash_sharded_02;
