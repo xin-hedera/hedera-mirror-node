@@ -39,12 +39,18 @@ jobs:
           echo "old major - ${{ steps.version_parser.outputs.major }}, old minor - ${{ steps.version_parser.outputs.minor }}"
           echo "old version - ${{ steps.version_parser.outputs.version }}"
           echo "old prerelease - ${{ steps.version_parser.outputs.pre-release }}"
-  
-          PREMIOR_VERSION=${{ steps.version_parser_new.outputs.inc-preminor }}
-          NEXT_VERSION_SNAPSHOT=${PREMIOR_VERSION//-0/-SNAPSHOT}
-          echo "new next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
-          echo "new major - ${{ steps.version_parser_new.outputs.major }}, new minor - ${{ steps.version_parser_new.outputs.minor }}"
-          VERSION=${{ steps.version_parser_new.outputs.release }}
-          [[ ! -z "${{ steps.version_parser_new.outputs.prerelease }}" ]] && VERSION="${VERSION}-${{ steps.version_parser_new.outputs.prerelease }}"
-          echo "new version - ${VERSION}"
-          echo "new prerelease - ${{ steps.version_parser_new.outputs.prerelease }}"
+
+          PREMINOR_VERSION=${{ steps.version_parser_new.outputs.inc-preminor }}
+          NEXT_VERSION_SNAPSHOT=${PREMINOR_VERSION//-0/-SNAPSHOT}
+          RELEASE_BRANCH="release/${{ steps.version_parser.outputs.major }}.${{ steps.version_parser.outputs.minor }}"
+          [[ -z "${{ steps.version_parser_new.outputs.prerelease }}" ]] && \
+            VERSION={{ steps.version_parser_new.outputs.release }} || \
+            VERSION="{{ steps.version_parser_new.outputs.release }}-${{ steps.version_parser_new.outputs.prerelease }}"
+          RELEASE_TAG="v${VERSION}"
+
+          cat >> $GITHUB_ENV <<EOF
+          NEXT_VERSION_SNAPSHOT=$NEXT_VERSION_SNAPSHOT
+          RELEASE_BRANCH=$RELEASE_BRANCH
+          RELEASE_TAG=$RELEASE_TAG
+          VERSION=$VERSION
+          EOF
