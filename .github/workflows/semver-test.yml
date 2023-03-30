@@ -30,6 +30,7 @@ jobs:
       - uses: madhead/semver-utils@latest
         id: version_parser_new
         with:
+          identifier: SNAPSHOT
           lenient: false
           version: ${{ github.event.inputs.version }}
 
@@ -40,8 +41,8 @@ jobs:
           echo "old version - ${{ steps.version_parser.outputs.version }}"
           echo "old prerelease - ${{ steps.version_parser.outputs.pre-release }}"
   
-          NEXT_VERSION_SNAPSHOT=${{ format('{0}-SNAPSHOT', steps.version_parser_new.outputs.inc-minor) }}
+          NEXT_VERSION_SNAPSHOT=${{ format('{0}-SNAPSHOT', steps.version_parser_new.outputs.inc-preminor) }}
           echo "new next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
           echo "new major - ${{ steps.version_parser_new.outputs.major }}, new minor - ${{ steps.version_parser_new.outputs.minor }}"
           echo "new version - ${{ steps.version_parser_new.outputs.release }}"
-          echo "new prerelease - ${{ steps.version_parser_new.outputs.build }}"        
+          echo "new prerelease - ${{ steps.version_parser_new.outputs.prerelease }}"
