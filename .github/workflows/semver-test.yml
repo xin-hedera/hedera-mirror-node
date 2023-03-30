@@ -54,3 +54,9 @@ jobs:
           RELEASE_TAG=$RELEASE_TAG
           VERSION=$VERSION
           EOF
+
+      - run: |
+          echo "NEXT_VERSION_SNAPSHOT - $NEXT_VERSION_SNAPSHOT"
+          echo "RELEASE_BRANCH - $RELEASE_BRANCH"
+          echo "RELEASE_TAG - $RELEASE_TAG"
+          echo "VERSION - $VERSION"
