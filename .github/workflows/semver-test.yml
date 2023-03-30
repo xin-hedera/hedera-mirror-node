@@ -20,12 +20,12 @@ jobs:
       release_branch: ${{ env.RELEASE_BRANCH }}
 
     steps:
-      - name: Parse Version Old
-        id: version_parser
-        uses: terradatum/semver-action@v1
-        with:
-          bump: preminor
-          version: ${{ github.event.inputs.version }}
+      # - name: Parse Version Old
+      #   id: version_parser
+      #   uses: terradatum/semver-action@v1
+      #   with:
+      #     bump: preminor
+      #     version: ${{ github.event.inputs.version }}
 
       - uses: madhead/semver-utils@latest
         id: version_parser_new
@@ -34,11 +34,11 @@ jobs:
           version: ${{ github.event.inputs.version }}
 
       - run: |
-          NEXT_VERSION_SNAPSHOT=${{ format('{0}.{1}.0-SNAPSHOT', steps.version_parser.outputs.major, steps.version_parser.outputs.next-minor) }}
-          echo "old next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
-          echo "old major - ${{ steps.version_parser.outputs.major }}, old minor - ${{ steps.version_parser.outputs.minor }}"
-          echo "old version - ${{ steps.version_parser.outputs.version }}"
-          echo "old prerelease - ${{ steps.version_parser.outputs.pre-release }}"
+          # NEXT_VERSION_SNAPSHOT=${{ format('{0}.{1}.0-SNAPSHOT', steps.version_parser.outputs.major, steps.version_parser.outputs.next-minor) }}
+          # echo "old next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
+          # echo "old major - ${{ steps.version_parser.outputs.major }}, old minor - ${{ steps.version_parser.outputs.minor }}"
+          # echo "old version - ${{ steps.version_parser.outputs.version }}"
+          # echo "old prerelease - ${{ steps.version_parser.outputs.pre-release }}"
 
           PREMINOR_VERSION=${{ steps.version_parser_new.outputs.inc-preminor }}
           NEXT_VERSION_SNAPSHOT=${PREMINOR_VERSION//-0/-SNAPSHOT}
