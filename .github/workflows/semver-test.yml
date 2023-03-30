@@ -1,0 +1,47 @@
+name: Semver Action Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (semver)'
+        required: true
+
+jobs:
+  test:
+    name: Release
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_NOTES_FILENAME: release_notes
+    outputs:
+      create_pr: ${{ env.CREATE_PR }}
+      next_version_snapshot: ${{ env.NEXT_VERSION_SNAPSHOT }}
+      pr_title: ${{ env.PR_TITLE }}
+      release_branch: ${{ env.RELEASE_BRANCH }}
+
+    steps:
+      - name: Parse Version Old
+        id: version_parser
+        uses: terradatum/semver-action@v1
+        with:
+          bump: preminor
+          version: ${{ github.event.inputs.version }}
+
+      - uses: madhead/semver-utils@latest
+        id: version_parser_new
+        with:
+          lenient: false
+          version: ${{ github.event.inputs.version }}
+
+      - run: |
+        NEXT_VERSION_SNAPSHOT=${{ format('{0}.{1}.0-SNAPSHOT', steps.version_parser.outputs.major, steps.version_parser.outputs.next-minor) }}
+        echo "old next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
+        echo "old major - ${{ steps.version_parser.outputs.major }}, old minor - ${{ steps.version_parser.outputs.minor }}"
+        echo "old version - ${{ steps.version_parser.outputs.version }}"
+        echo "old prerelease - ${{ steps.version_parser.outputs.pre-release }}"
+
+        NEXT_VERSION_SNAPSHOT=${{ format('{0}-SNAPSHOT', steps.version_parser_new.outputs.inc-minor) }}
+        echo "new next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
+        echo "new major - ${{ steps.version_parser_new.outputs.major }}, new minor - ${{ steps.version_parser_new.outputs.minor }}"
+        echo "new version - ${{ github.event.inputs.release }}"
+        echo "new prerelease - ${{ steps.version_parser_new.outputs.build }}"        
