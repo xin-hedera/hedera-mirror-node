@@ -43,5 +43,5 @@ jobs:
           NEXT_VERSION_SNAPSHOT=${{ format('{0}-SNAPSHOT', steps.version_parser_new.outputs.inc-minor) }}
           echo "new next version snapshot - ${NEXT_VERSION_SNAPSHOT}"
           echo "new major - ${{ steps.version_parser_new.outputs.major }}, new minor - ${{ steps.version_parser_new.outputs.minor }}"
-          echo "new version - ${{ github.event.inputs.release }}"
+          echo "new version - ${{ steps.version_parser_new.outputs.release }}"
           echo "new prerelease - ${{ steps.version_parser_new.outputs.build }}"        
