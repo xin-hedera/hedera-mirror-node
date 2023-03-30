@@ -44,8 +44,8 @@ jobs:
           NEXT_VERSION_SNAPSHOT=${PREMINOR_VERSION//-0/-SNAPSHOT}
           RELEASE_BRANCH="release/${{ steps.version_parser.outputs.major }}.${{ steps.version_parser.outputs.minor }}"
           [[ -z "${{ steps.version_parser_new.outputs.prerelease }}" ]] && \
-            VERSION={{ steps.version_parser_new.outputs.release }} || \
-            VERSION="{{ steps.version_parser_new.outputs.release }}-${{ steps.version_parser_new.outputs.prerelease }}"
+            VERSION=${{ steps.version_parser_new.outputs.release }} || \
+            VERSION="${{ steps.version_parser_new.outputs.release }}-${{ steps.version_parser_new.outputs.prerelease }}"
           RELEASE_TAG="v${VERSION}"
 
           cat >> $GITHUB_ENV <<EOF
