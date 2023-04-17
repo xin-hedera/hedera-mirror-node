@@ -29,14 +29,6 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: '${{ secrets.GCR_KEY }}'
-
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
-
       - name: Build
         uses: gradle/gradle-build-action@v2
         if: matrix.module != 'rest' && matrix.module != 'rest-monitor' && matrix.module != 'rosetta'
