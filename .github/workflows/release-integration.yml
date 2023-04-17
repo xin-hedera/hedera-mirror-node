@@ -37,9 +37,6 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Configure Docker
-        run: gcloud auth configure-docker gcr.io,marketplace.gcr.io
-
       - name: Build
         uses: gradle/gradle-build-action@v2
         if: matrix.module != 'rest' && matrix.module != 'rest-monitor' && matrix.module != 'rosetta'
