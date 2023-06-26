@@ -28,7 +28,7 @@ repositories {
 }
 
 extra.apply {
-    set("springBootVersion", "3.1.0")
+    set("springBootVersion", "3.1.1")
 }
 
 dependencies {
