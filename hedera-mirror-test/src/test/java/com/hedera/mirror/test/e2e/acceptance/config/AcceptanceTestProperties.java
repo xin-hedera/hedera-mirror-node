@@ -46,6 +46,8 @@ public class AcceptanceTestProperties {
     @NotNull
     private Duration backOffPeriod = Duration.ofMillis(5000);
 
+    private boolean cleanupResources = true;
+
     // A new account is usually necessary since shared accounts like 0.0.2 might reach maxTokensPerAccount, etc
     private boolean createOperatorAccount = true;
 

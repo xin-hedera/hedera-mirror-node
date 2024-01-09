@@ -217,6 +217,7 @@ public class MirrorNodeClient {
     }
 
     public ContractCallResponse contractsCall(ContractCallRequest request) {
+        log.info("Contract call request - {}", request);
         return callPostRestEndpoint("/contracts/call", ContractCallResponse.class, request);
     }
 

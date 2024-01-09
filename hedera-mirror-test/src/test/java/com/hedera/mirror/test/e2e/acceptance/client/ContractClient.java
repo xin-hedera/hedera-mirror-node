@@ -45,6 +45,10 @@ public class ContractClient extends AbstractNetworkClient {
 
     @Override
     public void clean() {
+        if (!sdkClient.getAcceptanceTestProperties().isCleanupResources()) {
+            return;
+        }
+
         log.info("Deleting {} contracts", contractIds.size());
         deleteAll(contractIds, id -> deleteContract(id, client.getOperatorAccountId(), null));
     }

@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -73,6 +74,12 @@ public class TokenClient extends AbstractNetworkClient {
 
     @Override
     public void clean() {
+        if (!sdkClient.getAcceptanceTestProperties().isCleanupResources()) {
+            var tokens = tokenIds.stream().map(TokenId::toString).collect(Collectors.joining(", "));
+            log.info("Remaining tokens after test execution: {}", tokens);
+            return;
+        }
+
         var admin = sdkClient.getExpandedOperatorAccountId();
         log.info("Deleting {} tokens and dissociating {} token relationships", tokenIds.size(), tokenAccounts.size());
         deleteAll(tokenIds, tokenId -> delete(admin, tokenId));

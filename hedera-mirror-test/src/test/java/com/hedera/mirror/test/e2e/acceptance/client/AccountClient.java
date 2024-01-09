@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import org.springframework.retry.support.RetryTemplate;
@@ -65,6 +66,13 @@ public class AccountClient extends AbstractNetworkClient {
 
     @Override
     public void clean() {
+        if (!sdkClient.getAcceptanceTestProperties().isCleanupResources()) {
+            var accountsStr = accountIds.stream().map(ExpandedAccountId::getAccountId).map(Object::toString).collect(
+                    Collectors.joining(", "));
+            log.info("Remaining accounts after test execution: {}", accountsStr);
+            return;
+        }
+
         log.info("Deleting {} accounts", accountIds.size());
         deleteAll(accountIds, this::delete);
 
@@ -235,6 +243,7 @@ public class AccountClient extends AbstractNetworkClient {
                 newAccountId,
                 initialBalance,
                 response.getTransactionId());
+        log.info("{}'s private key is {}", accountName, privateKey);
         var accountId = new ExpandedAccountId(newAccountId, privateKey);
         accountIds.add(accountId);
         return accountId;

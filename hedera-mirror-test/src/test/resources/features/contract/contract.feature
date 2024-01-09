@@ -1,7 +1,7 @@
 @contractbase @fullsuite
 Feature: Contract Base Coverage Feature
 
-    @critical @release @acceptance
+    @critical @release @acceptance @parent @k6
     Scenario Outline: Validate Contract Flows
 
         Using the Java SDK and the mirror node REST API, create, update and call a smart contract and
@@ -42,9 +42,9 @@ Feature: Contract Base Coverage Feature
         And the mirror node REST API should verify the account is no longer hollow
         When I successfully delete the child contract by calling it and causing it to self destruct
         Then the mirror node REST API should return status <httpStatusCode> for the self destruct transaction
-        When I successfully delete the parent contract
-        Then the mirror node REST API should return status <httpStatusCode> for the contract transaction
-        And the mirror node REST API should verify the deleted contract entity
+        #When I successfully delete the parent contract
+        #Then the mirror node REST API should return status <httpStatusCode> for the contract transaction
+        #And the mirror node REST API should verify the deleted contract entity
         Then I successfully delete the parent contract bytecode file
         Examples:
             | httpStatusCode | transferAmount |

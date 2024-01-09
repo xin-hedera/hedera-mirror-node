@@ -1,6 +1,7 @@
 @contractbase @fullsuite @precompile @web3 @acceptance
 Feature: Precompile Contract Base Coverage Feature
 
+  @k6
   Scenario Outline: Validate Precompile Contract
     Given I successfully create and verify a precompile contract from contract bytes
     Given I verify the precompile contract bytecode is deployed successfully

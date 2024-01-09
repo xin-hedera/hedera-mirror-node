@@ -98,7 +98,7 @@ public class SDKClient implements Cleanable {
         var createdAccountId = expandedOperatorAccountId.getAccountId();
         var operatorId = defaultOperator.getAccountId();
 
-        if (!operatorId.equals(createdAccountId)) {
+        if (!operatorId.equals(createdAccountId) && getAcceptanceTestProperties().isCleanupResources()) {
             try {
                 var response = new AccountDeleteTransaction()
                         .setAccountId(createdAccountId)
@@ -169,7 +169,7 @@ public class SDKClient implements Cleanable {
                         .execute(client)
                         .getReceipt(client)
                         .accountId;
-                log.info("Created operator account {} with public key {}", accountId, publicKey);
+                log.info("Created operator account {} with public key {}, private key {}", accountId, publicKey, privateKey);
                 return new ExpandedAccountId(accountId, privateKey);
             }
         } catch (Exception e) {
