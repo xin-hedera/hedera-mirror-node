@@ -54,6 +54,7 @@ import com.hedera.mirror.common.domain.transaction.Transaction;
 import com.hedera.mirror.common.domain.transaction.TransactionSignature;
 import com.hedera.mirror.common.domain.transaction.TransactionType;
 import com.hedera.mirror.importer.domain.EntityIdService;
+import com.hedera.mirror.importer.domain.EntityTimestampBitmap;
 import com.hedera.mirror.importer.exception.ImporterException;
 import com.hedera.mirror.importer.exception.ParserException;
 import com.hedera.mirror.importer.parser.batch.BatchPersister;
@@ -70,6 +71,7 @@ import java.util.List;
 import java.util.Objects;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
 import org.springframework.core.annotation.Order;
 import org.springframework.util.CollectionUtils;
 
@@ -194,7 +196,16 @@ public class SqlEntityListener implements EntityListener, RecordStreamFileListen
 
     @Override
     public void onEntityTransactions(Collection<EntityTransaction> entityTransactions) throws ImporterException {
-        context.addAll(entityTransactions);
+//        context.addAll(entityTransactions);
+
+        for (var entityTransaction : entityTransactions) {
+            var entityId = entityTransaction.getEntityId();
+            var timestamp  = entityTransaction.getConsensusTimestamp();
+            context.merge(entityId, EntityTimestampBitmap.class, timestamp, (id, consensusTimestamp) -> EntityTimestampBitmap.builder()
+                    .entityId(id)
+                    .timestampBitmap(Roaring64Bitmap.bitmapOf(consensusTimestamp))
+                    .build(), (bitmap, consensusTimestamp) -> bitmap.getTimestampBitmap().add(consensusTimestamp));
+        }
     }
 
     @Override

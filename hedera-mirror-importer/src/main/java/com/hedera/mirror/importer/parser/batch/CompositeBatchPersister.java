@@ -18,6 +18,7 @@ package com.hedera.mirror.importer.parser.batch;
 
 import com.hedera.mirror.common.domain.Upsertable;
 import com.hedera.mirror.common.domain.transaction.TransactionHash;
+import com.hedera.mirror.importer.domain.EntityTimestampBitmap;
 import com.hedera.mirror.importer.parser.CommonParserProperties;
 import com.hedera.mirror.importer.repository.upsert.UpsertQueryGenerator;
 import com.hedera.mirror.importer.repository.upsert.UpsertQueryGeneratorFactory;
@@ -47,7 +48,8 @@ public class CompositeBatchPersister implements BatchPersister {
             MeterRegistry meterRegistry,
             CommonParserProperties properties,
             UpsertQueryGeneratorFactory upsertQueryGeneratorFactory,
-            Optional<TransactionHashBatchInserter> transactionHashV1BatchPersister) {
+            Optional<TransactionHashBatchInserter> transactionHashV1BatchPersister,
+            EntityTimestampBitmapBatchUpserter entityTimestampBitmapBatchUpserter) {
         this.dataSource = dataSource;
         this.meterRegistry = meterRegistry;
         this.properties = properties;
@@ -55,6 +57,7 @@ public class CompositeBatchPersister implements BatchPersister {
 
         transactionHashV1BatchPersister.ifPresent(
                 batchPersister -> batchPersisters.put(TransactionHash.class, batchPersister));
+        batchPersisters.put(EntityTimestampBitmap.class, entityTimestampBitmapBatchUpserter);
     }
 
     @Override

@@ -7,3 +7,12 @@
 #        gcpProjectId: {projectId} # N/A for AWS
 #        secretKey: {GOOG1E/AWS....}
 #      network: PREVIEWNET/TESTNET/MAINNET # Select one network
+hedera:
+  mirror:
+    importer:
+      parser:
+        record:
+          entity:
+            persist:
+              entityTransactionExclusion: []
+              entityTransactions: true

@@ -38,6 +38,7 @@ dependencies {
     implementation("org.hyperledger.besu:secp256k1")
     implementation("org.msgpack:jackson-dataformat-msgpack")
     implementation("org.postgresql:postgresql")
+    implementation("org.roaringbitmap:RoaringBitmap:1.0.5")
     implementation("org.springframework.boot:spring-boot-configuration-processor")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-cache")

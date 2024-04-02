@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import lombok.Getter;
@@ -75,6 +77,19 @@ public class ParserContext {
         if (merged == value) {
             domainContext.getInserts().add(value);
         }
+    }
+
+    public <K, T, U> void merge(@NonNull K key, @NonNull Class<T> domainClass, @NonNull U value, @NonNull BiFunction<K, U, T> newFunction, @NonNull BiConsumer<T, U> mergeFunction) {
+        var domainContext = getDomainContext(domainClass);
+        var domainState = domainContext.getState();
+        if (!domainState.containsKey(key)) {
+            var domainObject = newFunction.apply(key, value);
+            domainState.put(key, domainObject);
+            domainContext.getInserts().add(domainObject);
+            return;
+        }
+
+        mergeFunction.accept(domainState.get(key), value);
     }
 
     public void remove(@NonNull Class<?> domainClass) {
