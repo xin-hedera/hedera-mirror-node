@@ -45,6 +45,12 @@ hedera:
     importer:
       parser:
         record:
+          entity:
+            persist:
+              entityTransactions: true
+              entityTransactionExclusion: []
+          historicalBalance:
+            enabled: false
           performance:
             transactions:
               - entities: 1
