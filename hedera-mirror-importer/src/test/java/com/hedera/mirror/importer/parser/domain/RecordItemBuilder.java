@@ -24,6 +24,7 @@ import static com.hederahashgraph.api.proto.java.CustomFee.FeeCase.FIXED_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.google.common.collect.Lists;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
@@ -1120,7 +1121,7 @@ public class RecordItemBuilder {
     }
 
     // Helper methods
-    private AccountAmount accountAmount(AccountID accountID, long amount) {
+    private static AccountAmount accountAmount(AccountID accountID, long amount) {
         return AccountAmount.newBuilder()
                 .setAccountID(accountID)
                 .setAmount(amount)
@@ -1318,9 +1319,9 @@ public class RecordItemBuilder {
         private final TransactionBody.Builder transactionBodyWrapper;
         private final TransactionRecord.Builder transactionRecord;
         private final List<TransactionSidecarRecord.Builder> sidecarRecords;
-        private final AccountID payerAccountId;
         private final RecordItem.RecordItemBuilder recordItemBuilder;
 
+        private AccountID payerAccountId;
         private Predicate<EntityId> entityTransactionPredicate = persistProperties::shouldPersistEntityTransaction;
         private Predicate<EntityId> contractTransactionPredicate = e -> persistProperties.isContractTransaction();
         private BiConsumer<TransactionBody.Builder, TransactionRecord.Builder> incrementer = (b, r) -> {};
@@ -1394,6 +1395,29 @@ public class RecordItemBuilder {
 
         public Builder<T> incrementer(BiConsumer<TransactionBody.Builder, TransactionRecord.Builder> incrementer) {
             this.incrementer = incrementer;
+            return this;
+        }
+
+        public Builder<T> payerAccountId(AccountID payerAccountId) {
+            if (payerAccountId.equals(this.payerAccountId)) {
+                return this;
+            }
+
+            var accountAmounts =
+                    Lists.newArrayList(transactionRecord.getTransferList().getAccountAmountsList());
+            var iter = accountAmounts.listIterator();
+            while (iter.hasNext()) {
+                var accountAmount = iter.next();
+                if (accountAmount.getAccountID().equals(this.payerAccountId) && accountAmount.getAmount() == -6000L) {
+                    iter.set(accountAmount.toBuilder()
+                            .setAccountID(payerAccountId)
+                            .build());
+                    transactionRecord.setTransferList(TransferList.newBuilder().addAllAccountAmounts(accountAmounts));
+                    break;
+                }
+            }
+
+            this.payerAccountId = payerAccountId;
             return this;
         }
 

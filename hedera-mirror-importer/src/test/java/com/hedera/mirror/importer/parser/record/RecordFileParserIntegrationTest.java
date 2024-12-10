@@ -132,7 +132,7 @@ class RecordFileParserIntegrationTest extends ImporterIntegrationTest {
                 .getTopicID());
         var recordFile = recordFileBuilder
                 .recordFile()
-                .recordItems(i -> i.count(count).template(() -> topicMessage))
+                .recordItems(i -> i.count(count).template((r) -> topicMessage))
                 .build();
 
         var receive = reactiveRedisOperations

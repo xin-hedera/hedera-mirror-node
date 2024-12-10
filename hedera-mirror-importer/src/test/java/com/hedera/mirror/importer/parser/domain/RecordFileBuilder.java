@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.CustomLog;
@@ -86,8 +87,8 @@ public class RecordFileBuilder {
                 }
             }
 
-            var consensusEnd = recordItems.get(recordItems.size() - 1).getConsensusTimestamp();
-            var consensusStart = recordItems.get(0).getConsensusTimestamp();
+            var consensusEnd = recordItems.getLast().getConsensusTimestamp();
+            var consensusStart = recordItems.getFirst().getConsensusTimestamp();
             Instant instant = Instant.ofEpochSecond(0, consensusStart);
             String filename = StreamFilename.getFilename(StreamType.RECORD, DATA, instant) + ".gz";
 
@@ -113,7 +114,7 @@ public class RecordFileBuilder {
         }
 
         public Builder recordItem(Supplier<RecordItemBuilder.Builder<?>> recordItem) {
-            return recordItems(i -> i.count(1).entities(1).template(recordItem));
+            return recordItems(i -> i.count(1).entities(1).template(r -> recordItem.get()));
         }
 
         public Builder recordItem(TransactionType type) {
@@ -135,7 +136,7 @@ public class RecordFileBuilder {
         private boolean entityAutoCreation = false;
         private SubType subType = SubType.STANDARD;
         private TransactionType type = TransactionType.UNKNOWN;
-        private Supplier<RecordItemBuilder.Builder<?>> template;
+        private Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> template;
 
         @Getter(lazy = true, value = AccessLevel.PRIVATE)
         private final List<RecordItemBuilder.Builder<?>> builders = createBuilders();
@@ -165,11 +166,17 @@ public class RecordFileBuilder {
             return this;
         }
 
-        public ItemBuilder template(Supplier<RecordItemBuilder.Builder<?>> template) {
+        public ItemBuilder template(Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> template) {
             Assert.notNull(template, "template must not be null");
             this.template = template;
             return this;
         }
+
+        //        public ItemBuilder template(Supplier<RecordItemBuilder.Builder<?>> template) {
+        //            Assert.notNull(template, "template must not be null");
+        //            this.template = template;
+        //            return this;
+        //        }
 
         public ItemBuilder type(TransactionType type) {
             Assert.notNull(type, "type must not be null");
@@ -197,20 +204,20 @@ public class RecordFileBuilder {
                     return null;
                 }
 
-                var index = remaining % builderSize;
+                var index = (count - remaining) % builderSize;
                 var builder = recordItemBuilders.get(index);
                 return builder.build();
             };
         }
 
-        private Supplier<RecordItemBuilder.Builder<?>> buildTemplate() {
+        private Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> buildTemplate() {
             if (template != null) {
                 return template;
             }
 
             if (subType != SubType.STANDARD) {
                 return switch (subType) {
-                    case TOKEN_TRANSFER -> () -> recordItemBuilder.cryptoTransfer(TransferType.TOKEN);
+                    case TOKEN_TRANSFER -> (recordItemBuilder) -> recordItemBuilder.cryptoTransfer(TransferType.TOKEN);
                     default -> throw new IllegalArgumentException("subType not supported: " + subType);
                 };
             }
@@ -219,7 +226,7 @@ public class RecordFileBuilder {
                 throw new IllegalArgumentException("type must not be unknown");
             }
 
-            return recordItem(type);
+            return r -> recordItem(type).get();
         }
 
         private List<RecordItemBuilder.Builder<?>> createBuilders() {
@@ -228,7 +235,7 @@ public class RecordFileBuilder {
             var builderTemplate = buildTemplate();
 
             for (int i = 0; i < maxEntities; i++) {
-                builderList.add(builderTemplate.get());
+                builderList.add(builderTemplate.apply(recordItemBuilder));
             }
 
             return builderList;

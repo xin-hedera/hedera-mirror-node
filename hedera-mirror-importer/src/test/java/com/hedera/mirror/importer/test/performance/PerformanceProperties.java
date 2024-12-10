@@ -66,6 +66,12 @@ public class PerformanceProperties {
         @NotNull
         private Duration latency = Duration.ofSeconds(2L);
 
+        @Min(100)
+        private long numEntities = 10_000L;
+
+        @Min(10)
+        private long numSerialsPerToken = 1000L;
+
         @NotBlank
         private String scenario;
     }

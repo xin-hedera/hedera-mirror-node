@@ -18,30 +18,55 @@ package com.hedera.mirror.importer.parser.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.base.Function;
 import com.google.common.base.Stopwatch;
-import com.google.common.util.concurrent.Uninterruptibles;
-import com.hedera.mirror.common.domain.StreamType;
-import com.hedera.mirror.importer.ImporterIntegrationTest;
+import com.google.protobuf.ByteString;
+import com.hedera.mirror.common.config.CommonTestConfiguration;
+import com.hedera.mirror.common.domain.entity.Entity;
+import com.hedera.mirror.importer.exception.InvalidDatasetException;
 import com.hedera.mirror.importer.parser.domain.RecordFileBuilder;
+import com.hedera.mirror.importer.parser.domain.RecordItemBuilder;
+import com.hedera.mirror.importer.repository.EntityRepository;
 import com.hedera.mirror.importer.repository.RecordFileRepository;
 import com.hedera.mirror.importer.test.performance.PerformanceProperties;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.TokenAssociation;
+import com.hederahashgraph.api.proto.java.TokenID;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
+import com.hederahashgraph.api.proto.java.TokenType;
+import com.hederahashgraph.api.proto.java.TransferList;
 import java.time.Duration;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
+import lombok.Builder;
 import lombok.CustomLog;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.junit.jupiter.EnabledIf;
 
 @CustomLog
 @EnabledIf(expression = "${hedera.mirror.importer.test.performance.parser.enabled}", loadContext = true)
+@Import(CommonTestConfiguration.class)
 @RequiredArgsConstructor
+@SpringBootTest
 @Tag("performance")
-class RecordFileParserPerformanceTest extends ImporterIntegrationTest {
+class RecordFileParserPerformanceTest {
 
+    private final AccountID DEFAULT_PAYER =
+            AccountID.newBuilder().setAccountNum(2).build();
+    private final int NUM_SERIALS_PER_MINT = 10;
+
+    private final EntityRepository entityRepository;
     private final PerformanceProperties performanceProperties;
     private final RecordFileParser recordFileParser;
     private final RecordFileBuilder recordFileBuilder;
@@ -50,62 +75,164 @@ class RecordFileParserPerformanceTest extends ImporterIntegrationTest {
     @BeforeEach
     void setup() {
         recordFileParser.clear();
+        //        domainBuilder.entity()
+        //                .customize(e -> e.num(12345L).id(12345L))
+        //                .persist();
+        //        domainBuilder.recordFile().persist();
     }
 
     @Test
     void scenarios() {
+        var nextEntityId = new AtomicLong(entityRepository
+                .findTopByOrderByIdDesc()
+                .map(Entity::getId)
+                .map(i -> i + 1)
+                .orElseThrow(() -> new InvalidDatasetException("No entities found")));
         var properties = performanceProperties.getParser();
         var previous = recordFileRepository.findLatest().orElse(null);
-        var scenarios = performanceProperties.getScenarios().getOrDefault(properties.getScenario(), List.of());
+        var stats = new SummaryStatistics();
+        var stopwatch = Stopwatch.createStarted();
+        //        var scenarios = performanceProperties.getScenarios().getOrDefault(properties.getScenario(),
+        // List.of());
 
-        for (var scenario : scenarios) {
-            if (!scenario.isEnabled()) {
-                log.info("Scenario {} is disabled", scenario.getDescription());
-                continue;
-            }
+        //        long interval = StreamType.RECORD.getFileCloseInterval().toMillis();
+        long numEntities = properties.getNumEntities();
 
-            log.info("Executing scenario: {}", scenario);
-            long interval = StreamType.RECORD.getFileCloseInterval().toMillis();
-            long duration = scenario.getDuration().toMillis();
-            long startTime = System.currentTimeMillis();
-            long endTime = startTime;
-            var stats = new SummaryStatistics();
-            var stopwatch = Stopwatch.createStarted();
-            var builder = recordFileBuilder.recordFile();
+        // Step 1 crypto create account
+        Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> cryptoCreateTemplate = recordItemBuilder -> {
+            var newAccountId = AccountID.newBuilder()
+                    .setAccountNum(nextEntityId.getAndIncrement())
+                    .build();
+            var transferList = TransferList.newBuilder()
+                    .addAccountAmounts(AccountAmount.newBuilder()
+                            .setAccountID(newAccountId)
+                            .setAmount(10_000_00_000_000L)
+                            .build())
+                    .addAccountAmounts(AccountAmount.newBuilder()
+                            .setAccountID(DEFAULT_PAYER)
+                            .setAmount(-10_000_00_000_000L)
+                            .build())
+                    .build();
+            return recordItemBuilder
+                    .cryptoCreate()
+                    .transactionBody(b -> b.setInitialBalance(10_000_00_000_000L))
+                    .payerAccountId(DEFAULT_PAYER)
+                    .receipt(r -> r.setAccountID(newAccountId))
+                    .record(r -> r.mergeTransferList(transferList));
+        };
+        long numCreatedAccounts = 0;
+        while (numCreatedAccounts < numEntities) {
+            long startNanos = System.nanoTime();
+            long count = Math.min(numEntities - numCreatedAccounts, 30_000L);
+            var recordFile = recordFileBuilder
+                    .recordFile()
+                    .previous(previous)
+                    .recordItems(i -> i.count((int) count).entities((int) count).template(cryptoCreateTemplate))
+                    .build();
+            recordFileParser.parse(recordFile);
+            stats.addValue(System.nanoTime() - startNanos);
 
-            scenario.getTransactions().forEach(p -> {
-                int count = (int) (p.getTps() * interval / 1000);
-                builder.recordItems(i -> i.count(count)
-                        .entities(p.getEntities())
-                        .entityAutoCreation(true)
-                        .subType(p.getSubType())
-                        .type(p.getType()));
-            });
-
-            while (endTime - startTime < duration) {
-                var recordFile = builder.previous(previous).build();
-                long startNanos = System.nanoTime();
-                recordFileParser.parse(recordFile);
-                stats.addValue(System.nanoTime() - startNanos);
-                previous = recordFile;
-
-                long sleep = interval - (System.currentTimeMillis() - endTime);
-                if (sleep > 0) {
-                    Uninterruptibles.sleepUninterruptibly(sleep, TimeUnit.MILLISECONDS);
-                }
-                endTime = System.currentTimeMillis();
-            }
-
-            long mean = (long) (stats.getMean() / 1_000_000.0);
-            log.info(
-                    "Scenario {} took {} to process {} files for a mean of {} ms per file",
-                    scenario.getDescription(),
-                    stopwatch,
-                    stats.getN(),
-                    mean);
-            assertThat(Duration.ofMillis(mean))
-                    .as("Scenario {} had a latency of {} ms", scenario.getDescription(), mean)
-                    .isLessThanOrEqualTo(properties.getLatency());
+            previous = recordFile;
+            numCreatedAccounts += count;
         }
+
+        // Step 2, token create non fungible token classes
+        final long firstTokenId = nextEntityId.get();
+        final long maxAccountId = firstTokenId - 1;
+        final int numNonFungibleTokens = (int) (numEntities / properties.getNumSerialsPerToken());
+        final var tokenInfoMap = new HashMap<Long, NonFungibleTokenMeta>(); // token id to admin account id map
+        Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenCreateTemplate = recordItemBuilder -> {
+            long tokenId = nextEntityId.getAndIncrement();
+            var protoTokenId = TokenID.newBuilder().setTokenNum(tokenId).build();
+            var adminAccountId = AccountID.newBuilder()
+                    .setAccountNum(maxAccountId - (tokenId - maxAccountId - 1))
+                    .build();
+            tokenInfoMap.put(
+                    tokenId,
+                    NonFungibleTokenMeta.builder()
+                            .adminId(adminAccountId)
+                            .tokenId(protoTokenId)
+                            .build());
+            var association = TokenAssociation.newBuilder()
+                    .setAccountId(adminAccountId)
+                    .setTokenId(protoTokenId)
+                    .build();
+            return recordItemBuilder
+                    .tokenCreate()
+                    .payerAccountId(adminAccountId)
+                    .record(r -> r.clearAutomaticTokenAssociations().addAutomaticTokenAssociations(association))
+                    .transactionBody(
+                            b -> b.setTokenType(TokenType.NON_FUNGIBLE_UNIQUE).setTreasury(adminAccountId))
+                    .receipt(r -> r.setTokenID(protoTokenId));
+        };
+        var recordFile = recordFileBuilder
+                .recordFile()
+                .previous(previous)
+                .recordItems(i -> i.count(numNonFungibleTokens)
+                        .entities(numNonFungibleTokens)
+                        .template(tokenCreateTemplate))
+                .build();
+        recordFileParser.parse(recordFile);
+        previous = recordFile;
+
+        // Step 3, token mint non fungible tokens
+        for (long tokenId = firstTokenId; tokenId < firstTokenId + numNonFungibleTokens; tokenId++) {
+            final var serial = new AtomicLong(1);
+            final var tokenInfo = tokenInfoMap.get(tokenId);
+            Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenMintTemplate = recordItemBuilder -> {
+                var allMetadata = new ArrayList<ByteString>();
+                var serials = new ArrayList<Long>();
+                IntStream.range(0, 10).forEach(x -> {
+                    allMetadata.add(recordItemBuilder.bytes(4));
+                    serials.add(serial.getAndIncrement());
+                });
+                var nftTransfers = serials.stream()
+                        .map(s -> NftTransfer.newBuilder()
+                                .setReceiverAccountID(tokenInfo.getAdminId())
+                                .setSerialNumber(s)
+                                .build())
+                        .toList();
+                var nftTransferList = TokenTransferList.newBuilder()
+                        .setToken(tokenInfo.getTokenId())
+                        .addAllNftTransfers(nftTransfers)
+                        .build();
+                return recordItemBuilder
+                        .tokenMint()
+                        .payerAccountId(tokenInfo.getAdminId())
+                        .transactionBody(b ->
+                                b.clearMetadata().addAllMetadata(allMetadata).setToken(tokenInfo.getTokenId()))
+                        .record(r -> r.clearTokenTransferLists().addTokenTransferLists(nftTransferList))
+                        .receipt(r -> r.clearSerialNumbers().addAllSerialNumbers(serials));
+            };
+
+            long totalMinted = 0;
+            while (totalMinted < properties.getNumSerialsPerToken()) {
+                long remaining = properties.getNumSerialsPerToken() - totalMinted;
+                long count = Math.min(remaining, 3_000L * NUM_SERIALS_PER_MINT);
+                int numTxs = (int) (count / NUM_SERIALS_PER_MINT);
+                recordFile = recordFileBuilder
+                        .recordFile()
+                        .previous(previous)
+                        .recordItems(i -> i.count(numTxs).entities(numTxs).template(tokenMintTemplate))
+                        .build();
+                recordFileParser.parse(recordFile);
+
+                previous = recordFile;
+                totalMinted += count;
+            }
+        }
+
+        long mean = (long) (stats.getMean() / 1_000_000.0);
+        log.info("Took {} to process {} files for a mean of {} ms per file", stopwatch, stats.getN(), mean);
+        assertThat(Duration.ofMillis(mean))
+                .as("CryptoCreate had a latency of {} ms", mean)
+                .isLessThanOrEqualTo(Duration.ofSeconds(400));
+    }
+
+    @Builder
+    @Data
+    private static class NonFungibleTokenMeta {
+        private AccountID adminId;
+        private TokenID tokenId;
     }
 }

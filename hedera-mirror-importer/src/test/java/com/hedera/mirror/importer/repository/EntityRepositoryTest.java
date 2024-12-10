@@ -132,4 +132,13 @@ class EntityRepositoryTest extends AbstractRepositoryTest {
                 .extracting(Entity::getType)
                 .allMatch(e -> e == CONTRACT);
     }
+
+    @Test
+    void findTopByOrderByIdDesc() {
+        assertThat(entityRepository.findTopByOrderByIdDesc()).isEmpty();
+
+        domainBuilder.entity().persist();
+        var last = domainBuilder.entity().persist();
+        assertThat(entityRepository.findTopByOrderByIdDesc()).contains(last);
+    }
 }
