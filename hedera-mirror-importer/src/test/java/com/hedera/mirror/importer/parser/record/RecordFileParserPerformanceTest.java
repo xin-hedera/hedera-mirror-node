@@ -106,16 +106,16 @@ class RecordFileParserPerformanceTest {
             var transferList = TransferList.newBuilder()
                     .addAccountAmounts(AccountAmount.newBuilder()
                             .setAccountID(newAccountId)
-                            .setAmount(10_000_00_000_000L)
+                            .setAmount(10_00_000_000L)
                             .build())
                     .addAccountAmounts(AccountAmount.newBuilder()
                             .setAccountID(DEFAULT_PAYER)
-                            .setAmount(-10_000_00_000_000L)
+                            .setAmount(-10_00_000_000L)
                             .build())
                     .build();
             return recordItemBuilder
                     .cryptoCreate()
-                    .transactionBody(b -> b.setInitialBalance(10_000_00_000_000L))
+                    .transactionBody(b -> b.setInitialBalance(10_00_000_000L))
                     .payerAccountId(DEFAULT_PAYER)
                     .receipt(r -> r.setAccountID(newAccountId))
                     .record(r -> r.mergeTransferList(transferList));
