@@ -754,11 +754,15 @@ public class RecordItemBuilder {
         });
     }
 
+    public void clearState() {
+        state.clear();
+    }
+
     public void reset() {
         entityId.set(INITIAL_ID);
         id.set(0L);
         now = Instant.now();
-        state.clear();
+        clearState();
     }
 
     public void setNow(Instant now) {

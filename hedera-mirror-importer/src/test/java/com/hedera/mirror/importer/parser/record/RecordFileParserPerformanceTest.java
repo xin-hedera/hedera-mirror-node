@@ -100,6 +100,7 @@ class RecordFileParserPerformanceTest {
 
         // Step 1 crypto create account
         Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> cryptoCreateTemplate = recordItemBuilder -> {
+            recordItemBuilder.clearState();
             var newAccountId = AccountID.newBuilder()
                     .setAccountNum(nextEntityId.getAndIncrement())
                     .build();
@@ -143,6 +144,7 @@ class RecordFileParserPerformanceTest {
         final int numNonFungibleTokens = (int) (numNfts / properties.getNumSerialsPerToken());
         final var tokenInfoMap = new HashMap<Long, NonFungibleTokenMeta>(); // token id to admin account id map
         Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenCreateTemplate = recordItemBuilder -> {
+            recordItemBuilder.clearState();
             long tokenId = nextEntityId.getAndIncrement();
             var protoTokenId = TokenID.newBuilder().setTokenNum(tokenId).build();
             var adminAccountId = AccountID.newBuilder()
@@ -179,6 +181,7 @@ class RecordFileParserPerformanceTest {
             final var serial = new AtomicLong(1);
             final var tokenInfo = tokenInfoMap.get(tokenId);
             Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenMintTemplate = recordItemBuilder -> {
+                recordItemBuilder.clearState();
                 var allMetadata = new ArrayList<ByteString>();
                 var serials = new ArrayList<Long>();
                 IntStream.range(0, 10).forEach(x -> {
