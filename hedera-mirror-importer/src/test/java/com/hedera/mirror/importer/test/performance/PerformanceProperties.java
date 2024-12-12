@@ -67,7 +67,10 @@ public class PerformanceProperties {
         private Duration latency = Duration.ofSeconds(2L);
 
         @Min(100)
-        private long numEntities = 10_000L;
+        private long numAccounts = 10_000L;
+
+        @Min(100)
+        private long numNfts = 10_000L;
 
         @Min(10)
         private long numSerialsPerToken = 1000L;

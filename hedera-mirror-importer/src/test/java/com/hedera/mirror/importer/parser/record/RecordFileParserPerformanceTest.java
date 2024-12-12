@@ -96,7 +96,7 @@ class RecordFileParserPerformanceTest {
         // List.of());
 
         //        long interval = StreamType.RECORD.getFileCloseInterval().toMillis();
-        long numEntities = properties.getNumEntities();
+        final long numAccounts = properties.getNumAccounts();
 
         // Step 1 crypto create account
         Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> cryptoCreateTemplate = recordItemBuilder -> {
@@ -121,13 +121,13 @@ class RecordFileParserPerformanceTest {
                     .record(r -> r.mergeTransferList(transferList));
         };
         long numCreatedAccounts = 0;
-        while (numCreatedAccounts < numEntities) {
+        while (numCreatedAccounts < numAccounts) {
             long startNanos = System.nanoTime();
-            long count = Math.min(numEntities - numCreatedAccounts, 30_000L);
+            long count = Math.min(numAccounts - numCreatedAccounts, 30_000L);
             var recordFile = recordFileBuilder
                     .recordFile()
                     .previous(previous)
-                    .recordItems(i -> i.count((int) count).entities((int) count).template(cryptoCreateTemplate))
+                    .recordItems(i -> i.count((int) count).template(cryptoCreateTemplate))
                     .build();
             recordFileParser.parse(recordFile);
             stats.addValue(System.nanoTime() - startNanos);
@@ -137,9 +137,10 @@ class RecordFileParserPerformanceTest {
         }
 
         // Step 2, token create non fungible token classes
+        final long numNfts = properties.getNumNfts();
         final long firstTokenId = nextEntityId.get();
         final long maxAccountId = firstTokenId - 1;
-        final int numNonFungibleTokens = (int) (numEntities / properties.getNumSerialsPerToken());
+        final int numNonFungibleTokens = (int) (numNfts / properties.getNumSerialsPerToken());
         final var tokenInfoMap = new HashMap<Long, NonFungibleTokenMeta>(); // token id to admin account id map
         Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenCreateTemplate = recordItemBuilder -> {
             long tokenId = nextEntityId.getAndIncrement();
@@ -168,9 +169,7 @@ class RecordFileParserPerformanceTest {
         var recordFile = recordFileBuilder
                 .recordFile()
                 .previous(previous)
-                .recordItems(i -> i.count(numNonFungibleTokens)
-                        .entities(numNonFungibleTokens)
-                        .template(tokenCreateTemplate))
+                .recordItems(i -> i.count(numNonFungibleTokens).template(tokenCreateTemplate))
                 .build();
         recordFileParser.parse(recordFile);
         previous = recordFile;
@@ -213,7 +212,7 @@ class RecordFileParserPerformanceTest {
                 recordFile = recordFileBuilder
                         .recordFile()
                         .previous(previous)
-                        .recordItems(i -> i.count(numTxs).entities(numTxs).template(tokenMintTemplate))
+                        .recordItems(i -> i.count(numTxs).template(tokenMintTemplate))
                         .build();
                 recordFileParser.parse(recordFile);
 

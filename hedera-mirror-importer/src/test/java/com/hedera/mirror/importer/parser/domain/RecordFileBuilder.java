@@ -30,14 +30,13 @@ import jakarta.inject.Named;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import lombok.AccessLevel;
 import lombok.CustomLog;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.Assert;
 
@@ -114,11 +113,11 @@ public class RecordFileBuilder {
         }
 
         public Builder recordItem(Supplier<RecordItemBuilder.Builder<?>> recordItem) {
-            return recordItems(i -> i.count(1).entities(1).template(r -> recordItem.get()));
+            return recordItems(i -> i.count(1).entities(1, r -> recordItem.get()));
         }
 
         public Builder recordItem(TransactionType type) {
-            return recordItems(i -> i.count(1).entities(1).type(type));
+            return recordItems(i -> i.count(1).type(type));
         }
 
         public Builder recordItems(Consumer<ItemBuilder> recordItems) {
@@ -132,14 +131,15 @@ public class RecordFileBuilder {
     public class ItemBuilder {
 
         private int count = 100;
-        private int entities = 10;
+        private int entities = 0;
+        private Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> entityTemplate;
         private boolean entityAutoCreation = false;
         private SubType subType = SubType.STANDARD;
         private TransactionType type = TransactionType.UNKNOWN;
         private Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> template;
 
-        @Getter(lazy = true, value = AccessLevel.PRIVATE)
-        private final List<RecordItemBuilder.Builder<?>> builders = createBuilders();
+        //        @Getter(lazy = true, value = AccessLevel.PRIVATE)
+        //        private final List<RecordItemBuilder.Builder<?>> builders = createBuilders();
 
         private ItemBuilder() {}
 
@@ -149,9 +149,11 @@ public class RecordFileBuilder {
             return this;
         }
 
-        public ItemBuilder entities(int entities) {
+        public ItemBuilder entities(
+                int entities, Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> entityTemplate) {
             Assert.isTrue(entities > 0, "entities must be positive");
             this.entities = entities;
+            this.entityTemplate = entityTemplate;
             return this;
         }
 
@@ -186,13 +188,17 @@ public class RecordFileBuilder {
         }
 
         private Supplier<RecordItem> build() {
-            var recordItemBuilders = getBuilders();
-            int builderSize = recordItemBuilders.size();
+            var entityBuilders = createEntityBuilders();
+            var templateBuilder = buildTemplate();
+            Assert.isTrue(
+                    !entityBuilders.isEmpty() || templateBuilder != null, "entityBuilders and template are both null");
+
             var counter = new AtomicInteger(count);
-            var creates = new ArrayDeque<>(recordItemBuilder.getCreateTransactions());
+            var creates = new ArrayDeque<>(
+                    entityAutoCreation ? recordItemBuilder.getCreateTransactions() : Collections.emptyList());
 
             return () -> {
-                if (entityAutoCreation && !creates.isEmpty()) {
+                if (!creates.isEmpty()) {
                     var builder = creates.remove();
                     var recordItem = builder.build();
                     log.info("Creating {}", TransactionType.of(recordItem.getTransactionType()));
@@ -204,9 +210,13 @@ public class RecordFileBuilder {
                     return null;
                 }
 
-                var index = (count - remaining) % builderSize;
-                var builder = recordItemBuilders.get(index);
-                return builder.build();
+                if (!entityBuilders.isEmpty()) {
+                    var index = (count - remaining) % entityBuilders.size();
+                    var builder = entityBuilders.get(index);
+                    return builder.build();
+                } else {
+                    return templateBuilder.apply(recordItemBuilder).build();
+                }
             };
         }
 
@@ -229,13 +239,10 @@ public class RecordFileBuilder {
             return r -> recordItem(type).get();
         }
 
-        private List<RecordItemBuilder.Builder<?>> createBuilders() {
-            List<RecordItemBuilder.Builder<?>> builderList = new ArrayList<>();
-            int maxEntities = Math.min(entities, count);
-            var builderTemplate = buildTemplate();
-
-            for (int i = 0; i < maxEntities; i++) {
-                builderList.add(builderTemplate.apply(recordItemBuilder));
+        private List<RecordItemBuilder.Builder<?>> createEntityBuilders() {
+            var builderList = new ArrayList<RecordItemBuilder.Builder<?>>();
+            for (int i = 0; i < entities; i++) {
+                builderList.add(entityTemplate.apply(recordItemBuilder));
             }
 
             return builderList;
