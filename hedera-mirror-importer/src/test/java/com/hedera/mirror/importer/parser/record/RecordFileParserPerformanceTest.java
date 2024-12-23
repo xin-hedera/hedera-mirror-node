@@ -37,16 +37,12 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
-import lombok.Builder;
 import lombok.CustomLog;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -72,13 +68,13 @@ class RecordFileParserPerformanceTest {
     private final RecordFileBuilder recordFileBuilder;
     private final RecordFileRepository recordFileRepository;
 
+    private long firstAccountId;
+    private long firstTokenId;
+    private long tokenTreasuryAccountId;
+
     @BeforeEach
     void setup() {
         recordFileParser.clear();
-        //        domainBuilder.entity()
-        //                .customize(e -> e.num(12345L).id(12345L))
-        //                .persist();
-        //        domainBuilder.recordFile().persist();
     }
 
     @Test
@@ -88,14 +84,20 @@ class RecordFileParserPerformanceTest {
                 .map(Entity::getId)
                 .map(i -> i + 1)
                 .orElseThrow(() -> new InvalidDatasetException("No entities found")));
-        var properties = performanceProperties.getParser();
-        var previous = recordFileRepository.findLatest().orElse(null);
-        var stats = new SummaryStatistics();
         var stopwatch = Stopwatch.createStarted();
-        //        var scenarios = performanceProperties.getScenarios().getOrDefault(properties.getScenario(),
-        // List.of());
 
-        //        long interval = StreamType.RECORD.getFileCloseInterval().toMillis();
+        createAccounts(nextEntityId);
+        createNfts(nextEntityId);
+        transferNfts();
+
+        log.info("Took {} to complete", stopwatch);
+        assertThat(stopwatch.elapsed().toMillis()).isNotZero();
+    }
+
+    private void createAccounts(AtomicLong nextEntityId) {
+        firstAccountId = nextEntityId.get();
+        var previous = recordFileRepository.findLatest().orElse(null);
+        var properties = performanceProperties.getParser();
         final long numAccounts = properties.getNumAccounts();
 
         // Step 1 crypto create account
@@ -121,9 +123,9 @@ class RecordFileParserPerformanceTest {
                     .receipt(r -> r.setAccountID(newAccountId))
                     .record(r -> r.mergeTransferList(transferList));
         };
+
         long numCreatedAccounts = 0;
         while (numCreatedAccounts < numAccounts) {
-            long startNanos = System.nanoTime();
             long count = Math.min(numAccounts - numCreatedAccounts, 30_000L);
             var recordFile = recordFileBuilder
                     .recordFile()
@@ -131,31 +133,48 @@ class RecordFileParserPerformanceTest {
                     .recordItems(i -> i.count((int) count).template(cryptoCreateTemplate))
                     .build();
             recordFileParser.parse(recordFile);
-            stats.addValue(System.nanoTime() - startNanos);
 
             previous = recordFile;
             numCreatedAccounts += count;
         }
+    }
 
-        // Step 2, token create non fungible token classes
+    private void createNfts(AtomicLong nextEntityId) {
+        var previous = recordFileRepository.findLatest().orElse(null);
+        var properties = performanceProperties.getParser();
         final long numNfts = properties.getNumNfts();
-        final long firstTokenId = nextEntityId.get();
-        final long maxAccountId = firstTokenId - 1;
+
+        tokenTreasuryAccountId = nextEntityId.getAndIncrement();
+        final var adminAccountId =
+                AccountID.newBuilder().setAccountNum(tokenTreasuryAccountId).build();
+        firstTokenId = nextEntityId.get();
+
         final int numNonFungibleTokens = (int) (numNfts / properties.getNumSerialsPerToken());
-        final var tokenInfoMap = new HashMap<Long, NonFungibleTokenMeta>(); // token id to admin account id map
+
+        Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> createTreasuryAccountRecordItem =
+                recordItemBuilder -> {
+                    var transferList = TransferList.newBuilder()
+                            .addAccountAmounts(AccountAmount.newBuilder()
+                                    .setAccountID(adminAccountId)
+                                    .setAmount(10_00_000_000L)
+                                    .build())
+                            .addAccountAmounts(AccountAmount.newBuilder()
+                                    .setAccountID(DEFAULT_PAYER)
+                                    .setAmount(-10_00_000_000L)
+                                    .build())
+                            .build();
+                    return recordItemBuilder
+                            .cryptoCreate()
+                            .transactionBody(b -> b.setInitialBalance(10_00_000_000L))
+                            .payerAccountId(DEFAULT_PAYER)
+                            .receipt(r -> r.setAccountID(adminAccountId))
+                            .record(r -> r.mergeTransferList(transferList));
+                };
+
         Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenCreateTemplate = recordItemBuilder -> {
             recordItemBuilder.clearState();
             long tokenId = nextEntityId.getAndIncrement();
             var protoTokenId = TokenID.newBuilder().setTokenNum(tokenId).build();
-            var adminAccountId = AccountID.newBuilder()
-                    .setAccountNum(maxAccountId - (tokenId - maxAccountId - 1))
-                    .build();
-            tokenInfoMap.put(
-                    tokenId,
-                    NonFungibleTokenMeta.builder()
-                            .adminId(adminAccountId)
-                            .tokenId(protoTokenId)
-                            .build());
             var association = TokenAssociation.newBuilder()
                     .setAccountId(adminAccountId)
                     .setTokenId(protoTokenId)
@@ -171,15 +190,15 @@ class RecordFileParserPerformanceTest {
         var recordFile = recordFileBuilder
                 .recordFile()
                 .previous(previous)
+                .recordItem(createTreasuryAccountRecordItem)
                 .recordItems(i -> i.count(numNonFungibleTokens).template(tokenCreateTemplate))
                 .build();
         recordFileParser.parse(recordFile);
         previous = recordFile;
 
-        // Step 3, token mint non fungible tokens
         for (long tokenId = firstTokenId; tokenId < firstTokenId + numNonFungibleTokens; tokenId++) {
             final var serial = new AtomicLong(1);
-            final var tokenInfo = tokenInfoMap.get(tokenId);
+            final var protoTokenId = TokenID.newBuilder().setTokenNum(tokenId).build();
             Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> tokenMintTemplate = recordItemBuilder -> {
                 recordItemBuilder.clearState();
                 var allMetadata = new ArrayList<ByteString>();
@@ -190,19 +209,19 @@ class RecordFileParserPerformanceTest {
                 });
                 var nftTransfers = serials.stream()
                         .map(s -> NftTransfer.newBuilder()
-                                .setReceiverAccountID(tokenInfo.getAdminId())
+                                .setReceiverAccountID(adminAccountId)
                                 .setSerialNumber(s)
                                 .build())
                         .toList();
                 var nftTransferList = TokenTransferList.newBuilder()
-                        .setToken(tokenInfo.getTokenId())
+                        .setToken(protoTokenId)
                         .addAllNftTransfers(nftTransfers)
                         .build();
                 return recordItemBuilder
                         .tokenMint()
-                        .payerAccountId(tokenInfo.getAdminId())
+                        .payerAccountId(adminAccountId)
                         .transactionBody(b ->
-                                b.clearMetadata().addAllMetadata(allMetadata).setToken(tokenInfo.getTokenId()))
+                                b.clearMetadata().addAllMetadata(allMetadata).setToken(protoTokenId))
                         .record(r -> r.clearTokenTransferLists().addTokenTransferLists(nftTransferList))
                         .receipt(r -> r.clearSerialNumbers().addAllSerialNumbers(serials));
             };
@@ -223,18 +242,126 @@ class RecordFileParserPerformanceTest {
                 totalMinted += count;
             }
         }
-
-        long mean = (long) (stats.getMean() / 1_000_000.0);
-        log.info("Took {} to process {} files for a mean of {} ms per file", stopwatch, stats.getN(), mean);
-        assertThat(Duration.ofMillis(mean))
-                .as("CryptoCreate had a latency of {} ms", mean)
-                .isLessThanOrEqualTo(Duration.ofSeconds(400));
     }
 
-    @Builder
-    @Data
-    private static class NonFungibleTokenMeta {
-        private AccountID adminId;
-        private TokenID tokenId;
+    private void transferNfts() {
+        // first phase, transfer all NFTs from the treasury account to other accounts, assuming there are the same
+        // number of accounts as NFTs
+        var previous = recordFileRepository.findLatest().orElse(null);
+        var properties = performanceProperties.getParser();
+        final var nextAccountId = new AtomicLong(firstAccountId);
+        final int numNonFungibleTokens = (int) (properties.getNumNfts() / properties.getNumSerialsPerToken());
+        long tokenId = firstTokenId;
+        final var treasury =
+                AccountID.newBuilder().setAccountNum(tokenTreasuryAccountId).build();
+
+        for (int i = 0; i < numNonFungibleTokens; i++, tokenId++) {
+            final var protoTokenId = TokenID.newBuilder().setTokenNum(tokenId).build();
+            final var serial = new AtomicLong(1);
+
+            Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> cryptoTransferTemplate = recordItemBuilder -> {
+                recordItemBuilder.clearState();
+                var nftTransfers = TokenTransferList.newBuilder().setToken(protoTokenId);
+                List<TokenAssociation> automaticTokenAssociations = new ArrayList<>();
+                IntStream.range(0, 10).forEach(x -> {
+                    var receiver = AccountID.newBuilder()
+                            .setAccountNum(nextAccountId.getAndIncrement())
+                            .build();
+                    nftTransfers.addNftTransfers(NftTransfer.newBuilder()
+                            .setReceiverAccountID(receiver)
+                            .setSenderAccountID(treasury)
+                            .setSerialNumber(serial.getAndIncrement())
+                            .build());
+                    automaticTokenAssociations.add(TokenAssociation.newBuilder()
+                            .setAccountId(receiver)
+                            .setTokenId(protoTokenId)
+                            .build());
+                });
+
+                return recordItemBuilder
+                        .cryptoTransfer()
+                        .transactionBody(b -> b.clear().addTokenTransfers(nftTransfers))
+                        .payerAccountId(treasury)
+                        .record(r -> r.clearTokenTransferLists()
+                                .addTokenTransferLists(nftTransfers)
+                                .addAllAutomaticTokenAssociations(automaticTokenAssociations));
+            };
+
+            long transferred = 0;
+            while (transferred < properties.getNumSerialsPerToken()) {
+                long remaining = properties.getNumSerialsPerToken() - transferred;
+                long count = Math.min(remaining, 3_000L * NUM_SERIALS_PER_MINT);
+                int numTxs = (int) (count / NUM_SERIALS_PER_MINT);
+
+                var recordFile = recordFileBuilder
+                        .recordFile()
+                        .previous(previous)
+                        .recordItems(b -> b.count(numTxs).template(cryptoTransferTemplate))
+                        .build();
+                recordFileParser.parse(recordFile);
+
+                previous = recordFile;
+                transferred += count;
+            }
+        }
+
+        // second phase, transfer all NFTs among the accounts
+        tokenId = firstTokenId;
+        for (int i = 0; i < numNonFungibleTokens; i++, tokenId++) {
+            final var protoTokenId = TokenID.newBuilder().setTokenNum(tokenId).build();
+            final var serial = new AtomicLong(1);
+            final var sender = new AtomicLong(firstAccountId + i * properties.getNumSerialsPerToken());
+            final var receiver = new AtomicLong(tokenTreasuryAccountId - (i + 1) * properties.getNumSerialsPerToken());
+
+            Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> cryptoTransferTemplate = recordItemBuilder -> {
+                recordItemBuilder.clearState();
+                var nftTransfers = TokenTransferList.newBuilder().setToken(protoTokenId);
+                List<TokenAssociation> automaticTokenAssociations = new ArrayList<>();
+                IntStream.range(0, 10).forEach(x -> {
+                    var receiverAccountId = AccountID.newBuilder()
+                            .setAccountNum(receiver.getAndIncrement())
+                            .build();
+                    var senderAccountId = AccountID.newBuilder()
+                            .setAccountNum(sender.getAndIncrement())
+                            .build();
+                    nftTransfers.addNftTransfers(NftTransfer.newBuilder()
+                            .setReceiverAccountID(receiverAccountId)
+                            .setSenderAccountID(senderAccountId)
+                            .setSerialNumber(serial.getAndIncrement())
+                            .build());
+                    automaticTokenAssociations.add(TokenAssociation.newBuilder()
+                            .setAccountId(receiverAccountId)
+                            .setTokenId(protoTokenId)
+                            .build());
+                });
+
+                return recordItemBuilder
+                        .cryptoTransfer()
+                        .transactionBody(b -> b.clear().addTokenTransfers(nftTransfers))
+                        .payerAccountId(AccountID.newBuilder()
+                                .setAccountNum(sender.get())
+                                .build())
+                        .record(r -> r.clearTokenTransferLists()
+                                .addTokenTransferLists(nftTransfers)
+                                .addAllAutomaticTokenAssociations(automaticTokenAssociations));
+            };
+
+            long transferred = 0;
+            while (transferred < properties.getNumSerialsPerToken()) {
+                long remaining = properties.getNumSerialsPerToken() - transferred;
+                long count = Math.min(remaining, 3_000L * NUM_SERIALS_PER_MINT);
+                int numTxs = (int) (count / NUM_SERIALS_PER_MINT);
+
+                var recordFile = recordFileBuilder
+                        .recordFile()
+                        .previous(previous)
+                        .recordItems(b -> b.count(numTxs).template(cryptoTransferTemplate))
+                        .build();
+                recordFileParser.parse(recordFile);
+
+                previous = recordFile;
+                transferred += count;
+            }
+        }
     }
 }

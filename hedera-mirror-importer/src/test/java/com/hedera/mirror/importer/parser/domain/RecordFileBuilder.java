@@ -112,9 +112,12 @@ public class RecordFileBuilder {
             return this;
         }
 
-        public Builder recordItem(Supplier<RecordItemBuilder.Builder<?>> recordItem) {
-            return recordItems(i -> i.count(1).entities(1, r -> recordItem.get()));
+        public Builder recordItem(Function<RecordItemBuilder, RecordItemBuilder.Builder<?>> template) {
+            return recordItems(i -> i.count(1).template(template));
         }
+        //        public Builder recordItem(Supplier<RecordItemBuilder.Builder<?>> recordItem) {
+        //            return recordItems(i -> i.count(1).entities(1, r -> recordItem.get()));
+        //        }
 
         public Builder recordItem(TransactionType type) {
             return recordItems(i -> i.count(1).type(type));
