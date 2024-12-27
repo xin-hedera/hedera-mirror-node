@@ -27,7 +27,6 @@ import com.hedera.mirror.common.util.DomainUtils;
 import com.hedera.mirror.importer.ImporterProperties;
 import com.hedera.mirror.importer.TestUtils;
 import com.hedera.mirror.importer.domain.StreamFileData;
-import com.hedera.mirror.importer.domain.StreamFilename;
 import com.hedera.mirror.importer.exception.InvalidDatasetException;
 import com.hedera.mirror.importer.parser.balance.BalanceParserProperties;
 import com.hedera.mirror.importer.reader.balance.line.AccountBalanceLineParser;
@@ -39,10 +38,10 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import lombok.SneakyThrows;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -89,8 +88,9 @@ abstract class CsvBalanceFileReaderTest {
     }
 
     @BeforeEach
-    void setup() throws IOException {
-        Instant instant = StreamFilename.from(balanceFile.getName()).getInstant();
+    @SneakyThrows
+    void setup() {
+        var instant = TestUtils.getInstant(balanceFile.getName());
         consensusTimestamp = DomainUtils.convertToNanosMax(instant);
         testFile = tempDir.resolve(balanceFile.getName()).toFile();
         assertThat(testFile.createNewFile()).isTrue();

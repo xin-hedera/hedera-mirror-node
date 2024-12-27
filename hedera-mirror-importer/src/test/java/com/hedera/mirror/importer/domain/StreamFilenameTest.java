@@ -26,6 +26,7 @@ import com.hedera.mirror.importer.exception.InvalidStreamFileException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -36,16 +37,16 @@ class StreamFilenameTest {
     @ParameterizedTest(name = "Create StreamFilename from {0}")
     @CsvSource({
         // @formatter:off
-        "2020-06-03T16_45_00.1Z_Balances.csv_sig,, csv_sig, SIGNATURE, csv_sig, 2020-06-03T16:45:00.1Z, BALANCE",
-        "2020-06-03T16_45_00.1Z_Balances.pb_sig,, pb_sig, SIGNATURE, pb_sig, 2020-06-03T16:45:00.1Z, BALANCE",
-        "2020-06-03T16_45_00.1Z_Balances.pb_sig.gz, gz, pb_sig, SIGNATURE, pb_sig.gz, 2020-06-03T16:45:00.1Z, "
-                + "BALANCE",
-        "2020-06-03T16_45_00.1Z_Balances.pb_sig.xz, xz, pb_sig, SIGNATURE, pb_sig.xz, 2020-06-03T16:45:00.1Z, "
-                + "BALANCE",
-        "2020-06-03T16_45_00.1Z_Balances.csv,, csv, DATA, csv, 2020-06-03T16:45:00.1Z, BALANCE",
-        "2020-06-03T16_45_00.1Z_Balances.pb.gz, gz, pb, DATA, pb.gz, 2020-06-03T16:45:00.1Z, BALANCE",
-        "2020-06-03T16_45_00.1Z.rcd_sig,,  rcd_sig, SIGNATURE, rcd_sig, 2020-06-03T16:45:00.1Z, RECORD",
-        "2020-06-03T16_45_00.1Z.rcd,, rcd, DATA, rcd, 2020-06-03T16:45:00.1Z, RECORD",
+        "2020-06-03T16_45_00.1Z_Balances.csv_sig,, csv_sig, SIGNATURE, csv_sig, BALANCE",
+        "2020-06-03T16_45_00.1Z_Balances.pb_sig,, pb_sig, SIGNATURE, pb_sig, BALANCE",
+        "2020-06-03T16_45_00.1Z_Balances.pb_sig.gz, gz, pb_sig, SIGNATURE, pb_sig.gz, BALANCE",
+        "2020-06-03T16_45_00.1Z_Balances.pb_sig.xz, xz, pb_sig, SIGNATURE, pb_sig.xz, BALANCE",
+        "2020-06-03T16_45_00.1Z_Balances.csv,, csv, DATA, csv, BALANCE",
+        "2020-06-03T16_45_00.1Z_Balances.pb.gz, gz, pb, DATA, pb.gz, BALANCE",
+        "2020-06-03T16_45_00.1Z.rcd_sig,,  rcd_sig, SIGNATURE, rcd_sig, RECORD",
+        "2020-06-03T16_45_00.1Z.rcd,, rcd, DATA, rcd, RECORD",
+        "000000000000000000000000000005135420.blk,, blk, DATA, blk, BLOCK",
+        "000000000000000000000000000005135420.blk.gz, gz, blk, DATA, blk.gz, BLOCK",
         // @formatter:on
     })
     void newStreamFile(
@@ -54,20 +55,12 @@ class StreamFilenameTest {
             String extension,
             StreamFilename.FileType fileType,
             String fullExtension,
-            Instant instant,
             StreamType streamType) {
         StreamFilename streamFilename = StreamFilename.from(filename);
         String[] fields = {
-            "filename",
-            "compressor",
-            "extension.name",
-            "fileType",
-            "fullExtension",
-            "instant",
-            "sidecarId",
-            "streamType"
+            "filename", "compressor", "extension.name", "fileType", "fullExtension", "sidecarId", "streamType"
         };
-        Object[] expected = {filename, compressor, extension, fileType, fullExtension, instant, null, streamType};
+        Object[] expected = {filename, compressor, extension, fileType, fullExtension, null, streamType};
 
         assertThat(streamFilename).extracting(fields).containsExactly(expected);
     }
@@ -199,6 +192,21 @@ class StreamFilenameTest {
         assertThat(dataStreamFilename.getPath()).isEqualTo(sigStreamFilename.getPath());
         assertThat(dataStreamFilename.getPathSeparator()).isEqualTo(sigStreamFilename.getPathSeparator());
         assertThat(dataStreamFilename).isNotEqualTo(sigStreamFilename);
+    }
+
+    @Test
+    void from() {
+        final Pattern NODE_ID_PATTERN = Pattern.compile("[^/]/(\\d{1,10})/(\\d{1,10})/((balance|record)/)?");
+        var matcher = NODE_ID_PATTERN.matcher("mainnet/0/0/balance/2020-06-03T16_45_00.100200345Z_Balances.csv_sig");
+        assertThat(matcher.find()).isTrue();
+        var f3 = matcher.group(3);
+        var f4 = matcher.group(4);
+        assertThat(f3).isNotEmpty();
+
+        var count = matcher.groupCount();
+        assertThat(count).isGreaterThan(0);
+        //        var streamFileName = StreamFilename.from("block-preview/0/0", "000000001.blk.gz", "/");
+        //        assertThat(streamFileName.getFilename()).isEqualTo("000000001.blk.gz");
     }
 
     @ParameterizedTest

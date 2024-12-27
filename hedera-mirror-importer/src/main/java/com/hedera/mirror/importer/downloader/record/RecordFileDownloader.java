@@ -22,7 +22,6 @@ import com.hedera.mirror.common.domain.transaction.RecordFile;
 import com.hedera.mirror.common.domain.transaction.RecordItem;
 import com.hedera.mirror.common.domain.transaction.SidecarFile;
 import com.hedera.mirror.importer.ImporterProperties;
-import com.hedera.mirror.importer.addressbook.ConsensusNode;
 import com.hedera.mirror.importer.addressbook.ConsensusNodeService;
 import com.hedera.mirror.importer.config.DateRangeCalculator;
 import com.hedera.mirror.importer.domain.StreamFileData;
@@ -46,10 +45,15 @@ import jakarta.inject.Named;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+@ConditionalOnProperty(
+        name = "hedera.mirror.importer.downloader.block.enabled",
+        havingValue = "false",
+        matchIfMissing = true)
 @Named
 public class RecordFileDownloader extends Downloader<RecordFile, RecordItem> {
 
@@ -95,9 +99,9 @@ public class RecordFileDownloader extends Downloader<RecordFile, RecordItem> {
     }
 
     @Override
-    protected void onVerified(StreamFileData streamFileData, RecordFile recordFile, ConsensusNode node) {
-        downloadSidecars(streamFileData.getStreamFilename(), recordFile, node);
-        super.onVerified(streamFileData, recordFile, node);
+    protected void onVerified(StreamFileData streamFileData, RecordFile recordFile) {
+        downloadSidecars(streamFileData.getStreamFilename(), recordFile);
+        super.onVerified(streamFileData, recordFile);
     }
 
     @Override
@@ -109,7 +113,7 @@ public class RecordFileDownloader extends Downloader<RecordFile, RecordItem> {
         }
     }
 
-    private void downloadSidecars(StreamFilename recordFilename, RecordFile recordFile, ConsensusNode node) {
+    private void downloadSidecars(StreamFilename recordFilename, RecordFile recordFile) {
         if (!sidecarProperties.isEnabled() || recordFile.getSidecars().isEmpty()) {
             return;
         }
@@ -120,7 +124,7 @@ public class RecordFileDownloader extends Downloader<RecordFile, RecordItem> {
         var records = Flux.fromIterable(recordFile.getSidecars())
                 .filter(sidecar ->
                         acceptedTypes.isEmpty() || sidecar.getTypes().stream().anyMatch(acceptedTypes::contains))
-                .flatMap(sidecar -> getSidecar(node, recordFilename, sidecar))
+                .flatMap(sidecar -> getSidecar(recordFilename, sidecar))
                 .flatMapIterable(SidecarFile::getRecords)
                 .filter(t -> acceptedTypes.isEmpty() || acceptedTypes.contains(getSidecarType(t)))
                 .collect(Multimaps.toMultimap(
@@ -137,9 +141,9 @@ public class RecordFileDownloader extends Downloader<RecordFile, RecordItem> {
         });
     }
 
-    private Mono<SidecarFile> getSidecar(ConsensusNode node, StreamFilename recordFilename, SidecarFile sidecar) {
+    private Mono<SidecarFile> getSidecar(StreamFilename recordFilename, SidecarFile sidecar) {
         var sidecarFilename = StreamFilename.from(recordFilename, sidecar.getName());
-        return streamFileProvider.get(node, sidecarFilename).map(streamFileData -> {
+        return streamFileProvider.get(sidecarFilename).map(streamFileData -> {
             sidecarFileReader.read(sidecar, streamFileData);
 
             if (!Arrays.equals(sidecar.getHash(), sidecar.getActualHash())) {

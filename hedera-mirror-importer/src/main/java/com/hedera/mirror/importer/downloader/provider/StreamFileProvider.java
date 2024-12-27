@@ -27,14 +27,15 @@ import reactor.core.publisher.Mono;
  */
 public interface StreamFileProvider {
 
+    String SEPARATOR = "/";
+
     /**
      * Fetches a stream file from a particular node upon subscription.
      *
-     * @param node           the consensus node to download from
-     * @param streamFilename the stream filename to download
+     * @param streamFilename the stream filename to download. Note the object should provide the full path to the file
      * @return the downloaded stream file data, wrapped in a Mono
      */
-    Mono<StreamFileData> get(ConsensusNode node, StreamFilename streamFilename);
+    Mono<StreamFileData> get(StreamFilename streamFilename);
 
     /**
      * Lists and downloads signature files for a particular node upon subscription. Uses the provided lastFilename to

@@ -97,7 +97,7 @@ class AutoS3StreamFileProviderTest extends S3StreamFileProviderTest {
     }
 
     @Test
-    void nodeAccountIdToNodeIdListTransition() throws Exception {
+    void nodeAccountIdToNodeIdListTransition() {
         var node = node("0.0.3");
 
         var accountIdFromPath = Path.of("data", "hip679", "provider-auto-transition", "recordstreams");
@@ -154,7 +154,7 @@ class AutoS3StreamFileProviderTest extends S3StreamFileProviderTest {
     void getNotFoundNodeId() {
         var node = node("0.0.4");
         var fileCopier = getFileCopier(node);
-        getNotFound(fileCopier, node);
+        getNotFound(fileCopier);
     }
 
     @SuppressWarnings("java:S2699")

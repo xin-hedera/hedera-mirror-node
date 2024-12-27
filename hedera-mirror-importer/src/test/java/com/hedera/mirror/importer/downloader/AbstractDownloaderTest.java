@@ -74,7 +74,6 @@ import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.CustomLog;
 import lombok.SneakyThrows;
@@ -107,8 +106,6 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 public abstract class AbstractDownloaderTest<T extends StreamFile<?>> {
 
     private static final int S3_PROXY_PORT = 8001;
-    private static final Pattern STREAM_FILENAME_INSTANT_PATTERN =
-            Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}_\\d{2}_\\d{2}(\\.\\d{1,9})?Z");
 
     @Mock(strictness = LENIENT)
     protected ConsensusNodeService consensusNodeService;
@@ -670,7 +667,7 @@ public abstract class AbstractDownloaderTest<T extends StreamFile<?>> {
         importerProperties.setStartBlockNumber(null);
 
         // Copy all files and modify only node 0.0.3's files to have a different timestamp
-        fileCopier.filterFiles(getStreamFilenameInstantString(file2) + "*").copy();
+        fileCopier.filterFiles(TestUtils.getInstantString(file2) + "*").copy();
         Path basePath = fileCopier.getTo().resolve(streamType.getNodePrefix() + "0.0.3");
 
         // Construct a new filename with the offset added to the last valid file
@@ -698,15 +695,6 @@ public abstract class AbstractDownloaderTest<T extends StreamFile<?>> {
         // take into account that data files may be compressed so the filename has an additional compression suffix,
         // while signature files won't be compressed.
         return dataFilename.replaceAll(dataExtension + ".*$", dataExtension + "_sig");
-    }
-
-    protected String getStreamFilenameInstantString(String filename) {
-        var matcher = STREAM_FILENAME_INSTANT_PATTERN.matcher(filename);
-        if (matcher.find()) {
-            return matcher.group();
-        }
-
-        throw new IllegalArgumentException("Invalid stream filename " + filename);
     }
 
     protected void verifyUnsuccessful() {
@@ -778,8 +766,8 @@ public abstract class AbstractDownloaderTest<T extends StreamFile<?>> {
         file1 = files.get(0);
         file2 = files.get(1);
 
-        file1Instant = StreamFilename.from(file1).getInstant();
-        file2Instant = StreamFilename.from(file2).getInstant();
+        file1Instant = TestUtils.getInstant(file1);
+        file2Instant = TestUtils.getInstant(file2);
         instantFilenamePairs = List.of(Pair.of(file1Instant, file1), Pair.of(file2Instant, file2));
     }
 

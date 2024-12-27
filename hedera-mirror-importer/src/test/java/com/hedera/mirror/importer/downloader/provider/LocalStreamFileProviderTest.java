@@ -79,8 +79,7 @@ class LocalStreamFileProviderTest extends AbstractStreamFileProviderTest {
                 .collectList()
                 .block();
         assertThat(sigs).hasSize(2);
-        sigs.forEach(
-                sig -> streamFileProvider.get(node, sig.getStreamFilename()).block());
+        sigs.forEach(sig -> streamFileProvider.get(sig.getStreamFilename()).block());
     }
 
     @Test
@@ -93,8 +92,7 @@ class LocalStreamFileProviderTest extends AbstractStreamFileProviderTest {
                 .collectList()
                 .block();
         assertThat(sigs).hasSize(2);
-        sigs.forEach(
-                sig -> streamFileProvider.get(node, sig.getStreamFilename()).block());
+        sigs.forEach(sig -> streamFileProvider.get(sig.getStreamFilename()).block());
     }
 
     @Test
@@ -108,8 +106,7 @@ class LocalStreamFileProviderTest extends AbstractStreamFileProviderTest {
                 .collectList()
                 .block();
         assertThat(sigs).hasSize(2);
-        sigs.forEach(
-                sig -> streamFileProvider.get(node, sig.getStreamFilename()).block());
+        sigs.forEach(sig -> streamFileProvider.get(sig.getStreamFilename()).block());
     }
 
     @Test
@@ -122,8 +119,7 @@ class LocalStreamFileProviderTest extends AbstractStreamFileProviderTest {
                 .collectList()
                 .block();
         assertThat(sigs).hasSize(2);
-        sigs.forEach(
-                sig -> streamFileProvider.get(node, sig.getStreamFilename()).block());
+        sigs.forEach(sig -> streamFileProvider.get(sig.getStreamFilename()).block());
     }
 
     @Test
@@ -139,8 +135,7 @@ class LocalStreamFileProviderTest extends AbstractStreamFileProviderTest {
                 .collectList()
                 .block();
         assertThat(sigs).hasSize(1).extracting(StreamFileData::getFilename).containsExactly(expected.getName());
-        sigs.forEach(
-                sig -> streamFileProvider.get(node, sig.getStreamFilename()).block());
+        sigs.forEach(sig -> streamFileProvider.get(sig.getStreamFilename()).block());
         assertThat(Files.walk(dataPath)
                         .filter(p ->
                                 p.toString().contains(node.getNodeAccountId().toString()))

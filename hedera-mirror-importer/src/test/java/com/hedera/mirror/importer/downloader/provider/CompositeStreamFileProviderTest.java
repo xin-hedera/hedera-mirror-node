@@ -68,8 +68,8 @@ class CompositeStreamFileProviderTest {
 
     @Test
     void get() {
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.just(DATA));
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.just(DATA));
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectNext(DATA)
                 .expectComplete()
@@ -78,9 +78,9 @@ class CompositeStreamFileProviderTest {
 
     @Test
     void getRecovers() {
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.error(new IllegalStateException("error")));
-        when(streamFileProvider2.get(NODE, FILENAME)).thenReturn(Mono.just(DATA));
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.error(new IllegalStateException("error")));
+        when(streamFileProvider2.get(FILENAME)).thenReturn(Mono.just(DATA));
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectNext(DATA)
                 .expectComplete()
@@ -91,8 +91,8 @@ class CompositeStreamFileProviderTest {
     void getNoSuchKeyException() {
         var error = new TransientProviderException(
                 NoSuchKeyException.builder().message("No key").build());
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.error(error));
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.error(error));
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectErrorSatisfies(e -> assertThat(e)
                         .hasRootCauseInstanceOf(NoSuchKeyException.class)
@@ -103,17 +103,17 @@ class CompositeStreamFileProviderTest {
     @Test
     void getSourcesExhausted() {
         var finalError = new IllegalStateException("error2");
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.error(new IllegalStateException("error1")));
-        when(streamFileProvider2.get(NODE, FILENAME)).thenReturn(Mono.error(finalError));
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.error(new IllegalStateException("error1")));
+        when(streamFileProvider2.get(FILENAME)).thenReturn(Mono.error(finalError));
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectErrorSatisfies(t -> assertThat(t).isEqualTo(finalError))
                 .verify(WAIT);
 
         // Ensure at least one source always remains
         Mockito.reset(streamFileProvider1, streamFileProvider2);
-        when(streamFileProvider2.get(NODE, FILENAME)).thenReturn(Mono.just(DATA));
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        when(streamFileProvider2.get(FILENAME)).thenReturn(Mono.just(DATA));
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectNext(DATA)
                 .expectComplete()
@@ -124,8 +124,8 @@ class CompositeStreamFileProviderTest {
     void getSingleSource() {
         compositeStreamFileProvider = new CompositeStreamFileProvider(properties, List.of(streamFileProvider1));
         var error = new RuntimeException("error");
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.error(error));
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.error(error));
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectErrorSatisfies(t -> assertThat(t).isEqualTo(error))
                 .verify(WAIT);
@@ -134,16 +134,16 @@ class CompositeStreamFileProviderTest {
     @Test
     void getBackoffRecovers() {
         properties.getSources().get(0).setBackoff(Duration.ofMillis(500L));
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.error(new IllegalStateException("error1")));
-        when(streamFileProvider2.get(NODE, FILENAME)).thenReturn(Mono.error(new IllegalStateException("error2")));
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.error(new IllegalStateException("error1")));
+        when(streamFileProvider2.get(FILENAME)).thenReturn(Mono.error(new IllegalStateException("error2")));
 
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectError(IllegalStateException.class)
                 .verify(WAIT);
 
         Mockito.reset(streamFileProvider1, streamFileProvider2);
-        when(streamFileProvider1.get(NODE, FILENAME)).thenReturn(Mono.just(DATA));
+        when(streamFileProvider1.get(FILENAME)).thenReturn(Mono.just(DATA));
 
         await("stream-provider-health")
                 .atMost(Duration.ofSeconds(5))
@@ -151,7 +151,7 @@ class CompositeStreamFileProviderTest {
                 .pollInterval(Duration.ofMillis(100L))
                 .until(() -> compositeStreamFileProvider.isHealthy());
 
-        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(NODE, FILENAME))
+        StepVerifier.withVirtualTime(() -> compositeStreamFileProvider.get(FILENAME))
                 .thenAwait(WAIT)
                 .expectNext(DATA)
                 .expectComplete()

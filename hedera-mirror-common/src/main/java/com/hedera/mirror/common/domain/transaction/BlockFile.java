@@ -16,18 +16,14 @@
 
 package com.hedera.mirror.common.domain.transaction;
 
-import static com.hedera.mirror.common.domain.transaction.RecordFile.HAPI_VERSION_NOT_SET;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hedera.hapi.block.stream.output.protoc.BlockHeader;
 import com.hedera.hapi.block.stream.protoc.BlockProof;
-import com.hedera.mirror.common.domain.DigestAlgorithm;
 import com.hedera.mirror.common.domain.StreamFile;
 import com.hedera.mirror.common.domain.StreamType;
 import com.hederahashgraph.api.proto.java.BlockStreamInfo;
 import jakarta.persistence.Column;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Transient;
 import java.util.Collection;
 import java.util.List;
@@ -35,10 +31,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-import org.springframework.data.util.Version;
 
 @Builder(toBuilder = true)
 @Data
@@ -55,8 +49,6 @@ public class BlockFile implements StreamFile<BlockItem> {
     // Contained within the last StateChange of the block, contains hashes needed to generate the block hash
     private BlockStreamInfo blockStreamInfo;
 
-    // TODO, determine fields not needed
-
     @ToString.Exclude
     private byte[] bytes;
 
@@ -66,28 +58,8 @@ public class BlockFile implements StreamFile<BlockItem> {
 
     private Long count;
 
-    @Enumerated
-    private DigestAlgorithm digestAlgorithm;
-
-    @ToString.Exclude
-    private String fileHash;
-
-    @Builder.Default
-    private long gasUsed = 0L;
-
-    private Integer hapiVersionMajor;
-    private Integer hapiVersionMinor;
-    private Integer hapiVersionPatch;
-
-    @Getter(lazy = true)
-    @JsonIgnore
-    @Transient
-    private final Version hapiVersion = hapiVersion();
-
     @ToString.Exclude
     private String hash;
-
-    private Long index;
 
     @Builder.Default
     @EqualsAndHashCode.Exclude
@@ -100,14 +72,6 @@ public class BlockFile implements StreamFile<BlockItem> {
 
     private Long loadStart;
 
-    @ToString.Exclude
-    private byte[] logsBloom;
-
-    @ToString.Exclude
-    @JsonIgnore
-    @Transient
-    private String metadataHash;
-
     private String name;
 
     private Long nodeId;
@@ -117,26 +81,14 @@ public class BlockFile implements StreamFile<BlockItem> {
     @ToString.Exclude
     private String previousHash;
 
-    // private int sidecarCount = 0;
-
-    private Integer size;
-
-    private int version;
-
-    @Override
-    public void clear() {
-        StreamFile.super.clear();
-        setLogsBloom(null);
-    }
-
     @Override
     public StreamFile<BlockItem> copy() {
         return this.toBuilder().build();
     }
 
     @Override
-    public void setItems(Collection<BlockItem> items) {
-        this.items = items;
+    public String getFileHash() {
+        return null;
     }
 
     @Override
@@ -145,11 +97,8 @@ public class BlockFile implements StreamFile<BlockItem> {
         return StreamType.BLOCK;
     }
 
-    private Version hapiVersion() {
-        if (hapiVersionMajor == null || hapiVersionMinor == null || hapiVersionPatch == null) {
-            return HAPI_VERSION_NOT_SET;
-        }
-
-        return new Version(hapiVersionMajor, hapiVersionMinor, hapiVersionPatch);
+    @Override
+    public Long getIndex() {
+        return blockHeader.getNumber();
     }
 }

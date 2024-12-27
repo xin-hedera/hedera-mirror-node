@@ -61,9 +61,9 @@ public final class S3StreamFileProvider implements StreamFileProvider {
     private final Map<PathKey, PathResult> paths = new ConcurrentHashMap<>();
     private final S3AsyncClient s3Client;
 
-    public Mono<StreamFileData> get(ConsensusNode node, StreamFilename streamFilename) {
-
+    public Mono<StreamFileData> get(StreamFilename streamFilename) {
         var s3Key = streamFilename.getFilePath();
+        log.info("Downloading {}", s3Key);
         var request = GetObjectRequest.builder()
                 .bucket(properties.getBucketName())
                 .key(s3Key)
@@ -108,7 +108,7 @@ public final class S3StreamFileProvider implements StreamFileProvider {
                 .filter(r -> r.size() <= properties.getMaxSize())
                 .map(this::toStreamFilename)
                 .filter(s -> s != EPOCH && s.getFileType() == SIGNATURE)
-                .flatMapSequential(streamFilename -> get(node, streamFilename))
+                .flatMapSequential(this::get)
                 .doOnSubscribe(s -> log.debug(
                         "Searching for the next {} files after {}/{}",
                         batchSize,
@@ -131,10 +131,13 @@ public final class S3StreamFileProvider implements StreamFileProvider {
     }
 
     private String getPrefix(PathKey key, PathType pathType) {
-        return switch (pathType) {
-            case ACCOUNT_ID, AUTO -> getAccountIdPrefix(key);
-            case NODE_ID -> getNodeIdPrefix(key);
-        };
+        var prefix =
+                switch (pathType) {
+                    case ACCOUNT_ID, AUTO -> getAccountIdPrefix(key);
+                    case NODE_ID -> getNodeIdPrefix(key);
+                };
+
+        return StringUtils.isEmpty(properties.getPathPrefix()) ? prefix : properties.getPathPrefix() + "/" + prefix;
     }
 
     private StreamFileData toStreamFileData(StreamFilename streamFilename, ResponseBytes<GetObjectResponse> r) {

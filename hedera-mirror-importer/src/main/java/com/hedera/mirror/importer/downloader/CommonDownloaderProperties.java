@@ -79,6 +79,9 @@ public class CommonDownloaderProperties {
     private Duration pathRefreshInterval = Duration.ofSeconds(10L);
 
     @NotNull
+    private String pathPrefix = "";
+
+    @NotNull
     private PathType pathType = PathType.ACCOUNT_ID;
 
     private String region = "us-east-1";

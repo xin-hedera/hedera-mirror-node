@@ -93,7 +93,7 @@ abstract class AbstractStreamFileProviderTest {
         var nodeFileCopier = getFileCopier(node);
         nodeFileCopier.copy();
         var data = streamFileData(node, "2022-07-13T08_46_08.041986003Z.rcd_sig");
-        StepVerifier.create(streamFileProvider.get(node, data.getStreamFilename()))
+        StepVerifier.create(streamFileProvider.get(data.getStreamFilename()))
                 .thenAwait(Duration.ofSeconds(2L))
                 .expectNext(data)
                 .expectComplete()
@@ -104,7 +104,7 @@ abstract class AbstractStreamFileProviderTest {
         properties.setMaxSize(maxSize);
         replaceContents(data, Arrays.append(data.getBytes(), (byte) 1));
 
-        StepVerifier.withVirtualTime(() -> streamFileProvider.get(node, data.getStreamFilename()))
+        StepVerifier.withVirtualTime(() -> streamFileProvider.get(data.getStreamFilename()))
                 .thenAwait(Duration.ofSeconds(10L))
                 .expectError(InvalidDatasetException.class)
                 .verify(Duration.ofSeconds(10L));
@@ -121,7 +121,7 @@ abstract class AbstractStreamFileProviderTest {
     void getNotFound() {
         var node = node("0.0.3");
         var nodeFileCopier = getFileCopier(node);
-        getNotFound(nodeFileCopier, node);
+        getNotFound(nodeFileCopier);
     }
 
     @Test
@@ -155,7 +155,7 @@ abstract class AbstractStreamFileProviderTest {
                         .version(ProtoSignatureFileReader.VERSION)
                         .build())
                 .map(StreamFileSignature::getDataFilename)
-                .flatMap(s -> streamFileProvider.get(node, s))
+                .flatMap(s -> streamFileProvider.get(s))
                 .collectList()
                 .block();
         assertThat(files)
@@ -167,7 +167,7 @@ abstract class AbstractStreamFileProviderTest {
 
         var sidecars = Flux.fromIterable(files)
                 .map(StreamFileData::getStreamFilename)
-                .flatMap(s -> streamFileProvider.get(node, StreamFilename.from(s, s.getSidecarFilename(1))))
+                .flatMap(s -> streamFileProvider.get(StreamFilename.from(s, s.getSidecarFilename(1))))
                 .collectList()
                 .block();
         assertThat(sidecars)
@@ -263,7 +263,7 @@ abstract class AbstractStreamFileProviderTest {
     protected final void get(FileCopier fileCopier, ConsensusNode node) {
         fileCopier.copy();
         var data = streamFileData(node, "2022-07-13T08_46_08.041986003Z.rcd_sig");
-        StepVerifier.withVirtualTime(() -> streamFileProvider.get(node, data.getStreamFilename()))
+        StepVerifier.withVirtualTime(() -> streamFileProvider.get(data.getStreamFilename()))
                 .thenAwait(Duration.ofSeconds(10L))
                 .expectNext(data)
                 .expectComplete()
@@ -274,7 +274,7 @@ abstract class AbstractStreamFileProviderTest {
         fileCopier.copy();
         var data = streamFileData(node, "2022-07-13T08_46_11.304284003Z_01.rcd.gz");
         StepVerifier.withVirtualTime(() -> streamFileProvider
-                        .get(node, data.getStreamFilename())
+                        .get(data.getStreamFilename())
                         .doOnNext(sfd -> assertThat(sfd.getBytes()).isEqualTo(data.getBytes())))
                 .thenAwait(Duration.ofSeconds(10L))
                 .expectNext(data)
@@ -282,9 +282,9 @@ abstract class AbstractStreamFileProviderTest {
                 .verify(Duration.ofSeconds(10L));
     }
 
-    protected final void getNotFound(FileCopier fileCopier, ConsensusNode node) {
+    protected final void getNotFound(FileCopier fileCopier) {
         fileCopier.copy();
-        StepVerifier.withVirtualTime(() -> streamFileProvider.get(node, StreamFilename.EPOCH))
+        StepVerifier.withVirtualTime(() -> streamFileProvider.get(StreamFilename.EPOCH))
                 .thenAwait(Duration.ofSeconds(10L))
                 .expectError(TransientProviderException.class)
                 .verify(Duration.ofSeconds(10L));
@@ -294,8 +294,8 @@ abstract class AbstractStreamFileProviderTest {
         fileCopier.copy();
         dataPath.toFile().setExecutable(false);
         var data = streamFileData(node, "2022-07-13T08_46_08.041986003Z.rcd_sig");
-        StepVerifier.withVirtualTime(() ->
-                        streamFileProvider.get(node, data.getStreamFilename()).map(StreamFileData::getBytes))
+        StepVerifier.withVirtualTime(
+                        () -> streamFileProvider.get(data.getStreamFilename()).map(StreamFileData::getBytes))
                 .thenAwait(Duration.ofSeconds(10L))
                 .expectError(RuntimeException.class)
                 .verify(Duration.ofSeconds(10L));

@@ -31,9 +31,8 @@ import com.hedera.mirror.importer.exception.InvalidDatasetException;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
@@ -44,13 +43,14 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class LocalStreamFileProvider implements StreamFileProvider {
 
+    private static final Pattern DATED_FILENAME_PATTERN = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})T.*$");
     private static final File[] EMPTY = new File[0];
 
     private final CommonDownloaderProperties properties;
     private final LocalStreamFileProperties localProperties;
 
     @Override
-    public Mono<StreamFileData> get(ConsensusNode node, StreamFilename streamFilename) {
+    public Mono<StreamFileData> get(StreamFilename streamFilename) {
         var basePath = properties.getImporterProperties().getStreamPath().toFile();
         return Mono.fromSupplier(() -> new File(basePath, streamFilename.getFilePath()))
                 .doOnNext(this::checkSize)
@@ -125,8 +125,7 @@ public class LocalStreamFileProvider implements StreamFileProvider {
         }
 
         try (var subDirs = Files.list(basePath)) {
-            var date = LocalDate.ofInstant(streamFilename.getInstant(), ZoneOffset.UTC)
-                    .toString();
+            var date = getDate(streamFilename);
             var paths = subDirs.map(Path::toFile)
                     .filter(f -> f.isDirectory()
                             && f.getName().compareTo(date) >= 0
@@ -179,5 +178,15 @@ public class LocalStreamFileProvider implements StreamFileProvider {
         var basePath = properties.getImporterProperties().getStreamPath();
         var filename = StreamFilename.from(basePath.relativize(file.toPath()).toString());
         return StreamFileData.from(basePath, filename);
+    }
+
+    private String getDate(StreamFilename streamFilename) {
+        var filename = streamFilename.getFilename();
+        var matcher = DATED_FILENAME_PATTERN.matcher(filename);
+        if (!matcher.matches()) {
+            throw new InvalidDatasetException(String.format("Stream filename %s doesn't start with a date", filename));
+        }
+
+        return matcher.group(1);
     }
 }

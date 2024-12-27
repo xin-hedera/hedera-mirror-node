@@ -21,6 +21,7 @@ import com.hedera.mirror.common.domain.balance.AccountBalanceFile;
 import com.hedera.mirror.common.domain.transaction.BlockFile;
 import com.hedera.mirror.common.domain.transaction.RecordFile;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.SortedSet;
@@ -29,6 +30,7 @@ import java.util.stream.IntStream;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Value;
+import org.apache.logging.log4j.util.Strings;
 
 @Getter
 public enum StreamType {
@@ -40,14 +42,12 @@ public enum StreamType {
             List.of("csv", "pb"),
             Duration.ofMinutes(15L)),
     RECORD(RecordFile::new, "recordstreams", "record", "", List.of("rcd"), Duration.ofSeconds(2L)),
-    BLOCK(BlockFile::new, "blockstreams", "block", "", List.of("blk"), Duration.ofSeconds(1L));
+    BLOCK(BlockFile::new, List.of("blk"), Duration.ofMillis(500));
 
     public static final String SIGNATURE_SUFFIX = "_sig";
 
-    private static final String PARSED = "parsed";
-    private static final String SIGNATURES = "signatures";
-
     private final SortedSet<Extension> dataExtensions;
+    private final boolean legacy;
     private final String nodePrefix;
     private final String path;
     private final SortedSet<Extension> signatureExtensions;
@@ -62,28 +62,38 @@ public enum StreamType {
             String nodePrefix,
             String suffix,
             List<String> extensions,
-            Duration fileCloseInterval) {
+            Duration fileCloseInterval,
+            boolean legacy) {
         this.supplier = supplier;
         this.path = path;
+        this.legacy = legacy;
         this.nodePrefix = nodePrefix;
         this.suffix = suffix;
-        this.nodeIdBasedSuffix = name().toLowerCase();
+        this.nodeIdBasedSuffix = legacy ? name().toLowerCase() : Strings.EMPTY;
         this.fileCloseInterval = fileCloseInterval;
 
         dataExtensions = IntStream.range(0, extensions.size())
                 .mapToObj(index -> Extension.of(extensions.get(index), index))
                 .collect(ImmutableSortedSet.toImmutableSortedSet(Comparator.naturalOrder()));
-        signatureExtensions = dataExtensions.stream()
-                .map(ext -> Extension.of(ext.getName() + SIGNATURE_SUFFIX, ext.getPriority()))
-                .collect(ImmutableSortedSet.toImmutableSortedSet(Comparator.naturalOrder()));
+        signatureExtensions = legacy
+                ? dataExtensions.stream()
+                        .map(ext -> Extension.of(ext.getName() + SIGNATURE_SUFFIX, ext.getPriority()))
+                        .collect(ImmutableSortedSet.toImmutableSortedSet(Comparator.naturalOrder()))
+                : Collections.emptySortedSet();
     }
 
-    public String getParsed() {
-        return PARSED;
+    StreamType(
+            Supplier<? extends StreamFile<?>> supplier,
+            String path,
+            String nodePrefix,
+            String suffix,
+            List<String> extensions,
+            Duration fileCloseInterval) {
+        this(supplier, path, nodePrefix, suffix, extensions, fileCloseInterval, true);
     }
 
-    public String getSignatures() {
-        return SIGNATURES;
+    StreamType(Supplier<? extends StreamFile<?>> supplier, List<String> extensions, Duration fileCloseInterval) {
+        this(supplier, Strings.EMPTY, Strings.EMPTY, Strings.EMPTY, extensions, fileCloseInterval, false);
     }
 
     public boolean isChained() {

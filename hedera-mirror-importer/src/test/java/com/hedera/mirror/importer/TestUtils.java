@@ -61,15 +61,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.experimental.UtilityClass;
 import org.apache.commons.beanutils.BeanUtilsBean;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.jdbc.core.DataClassRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @UtilityClass
 public class TestUtils {
 
+    private static final Pattern STREAM_FILENAME_INSTANT_PATTERN =
+            Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}_\\d{2}_\\d{2}(\\.\\d{1,9})?Z");
     private static final SecureRandom RANDOM = new SecureRandom();
 
     // Customize BeanUtilsBean to not copy properties for null since non-nulls represent partial updates in our system.
@@ -94,6 +98,20 @@ public class TestUtils {
 
     public Instant asStartOfEpochDay(long epochDay) {
         return LocalDate.ofEpochDay(epochDay).atStartOfDay().toInstant(ZoneOffset.UTC);
+    }
+
+    public Instant getInstant(String filePath) {
+        return Instant.parse(getInstantString(filePath).replaceAll("_", ":"));
+    }
+
+    public String getInstantString(String filePath) {
+        var filename = FilenameUtils.getName(filePath);
+        var matcher = STREAM_FILENAME_INSTANT_PATTERN.matcher(filename);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+
+        throw new IllegalArgumentException("Stream filename doesn't start with date time: " + filename);
     }
 
     /**

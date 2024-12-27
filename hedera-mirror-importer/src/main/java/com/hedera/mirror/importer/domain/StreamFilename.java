@@ -26,7 +26,6 @@ import com.hedera.mirror.common.domain.StreamType;
 import com.hedera.mirror.importer.downloader.provider.S3StreamFileProvider;
 import com.hedera.mirror.importer.exception.InvalidStreamFileException;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -57,6 +56,8 @@ public class StreamFilename implements Comparable<StreamFilename> {
             Splitter.on(FilenameUtils.EXTENSION_SEPARATOR).omitEmptyStrings();
     private static final Pattern SIDECAR_PATTERN;
     private static final Map<StreamType, Map<String, StreamType.Extension>> STREAM_TYPE_EXTENSION_MAP;
+    private static final Pattern TIMESTAMPED_FILENAME_PATTERN =
+            Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T(\\d{2}_){2}\\d{2}(\\.\\d{1,9})?Z.*$");
 
     static {
         SIDECAR_PATTERN = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T(\\d{2}_){2}\\d{2}(\\.\\d{1,9})?Z_(\\d{2})\\.");
@@ -86,7 +87,6 @@ public class StreamFilename implements Comparable<StreamFilename> {
 
     private final FileType fileType;
     private final String fullExtension;
-    private final Instant instant;
     private final String sidecarId;
     private final StreamType streamType;
     private final long timestamp = System.currentTimeMillis();
@@ -108,19 +108,25 @@ public class StreamFilename implements Comparable<StreamFilename> {
 
         // A compressed and uncompressed file can exist simultaneously, so we need uniqueness to not include .gz
         this.filenameWithoutCompressor = isCompressed() ? removeExtension(this.filename) : this.filename;
-        this.instant = extractInstant(filename, this.fullExtension, this.sidecarId, this.streamType.getSuffix());
 
-        var builder = new StringBuilder();
+        if (this.streamType.isLegacy()) {
+            var matcher = TIMESTAMPED_FILENAME_PATTERN.matcher(this.filename);
+            if (!matcher.matches()) {
+                throw new InvalidStreamFileException("Invalid datetime string in filename: " + this.filename);
+            }
+        }
+
+        var filePathBuilder = new StringBuilder();
         if (!StringUtils.isEmpty(this.path)) {
-            builder.append(this.path);
-            builder.append(this.pathSeparator);
+            filePathBuilder.append(this.path);
+            filePathBuilder.append(this.pathSeparator);
         }
         if (this.fileType == SIDECAR) {
-            builder.append(SIDECAR_FOLDER);
-            builder.append(this.pathSeparator);
+            filePathBuilder.append(SIDECAR_FOLDER);
+            filePathBuilder.append(this.pathSeparator);
         }
-        builder.append(this.filename);
-        this.filePath = builder.toString();
+        filePathBuilder.append(this.filename);
+        this.filePath = filePathBuilder.toString();
     }
 
     public static StreamFilename from(String filePath) {
@@ -200,20 +206,6 @@ public class StreamFilename implements Comparable<StreamFilename> {
         }
 
         throw new InvalidStreamFileException("Failed to determine StreamType for filename: " + filename);
-    }
-
-    private static Instant extractInstant(String filename, String fullExtension, String sidecarId, String suffix) {
-        try {
-            String fullSuffix = StringUtils.join(suffix, ".", fullExtension);
-            String dateTime = StringUtils.removeEnd(filename, fullSuffix);
-            if (StringUtils.isNotEmpty(sidecarId)) {
-                dateTime = StringUtils.removeEnd(dateTime, COMPATIBLE_TIME_SEPARATOR + sidecarId);
-            }
-            dateTime = dateTime.replace(COMPATIBLE_TIME_SEPARATOR, STANDARD_TIME_SEPARATOR);
-            return Instant.parse(dateTime);
-        } catch (DateTimeParseException ex) {
-            throw new InvalidStreamFileException("Invalid datetime string in filename " + filename, ex);
-        }
     }
 
     @Override

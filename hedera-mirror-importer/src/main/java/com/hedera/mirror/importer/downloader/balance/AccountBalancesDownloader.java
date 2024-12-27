@@ -19,7 +19,6 @@ package com.hedera.mirror.importer.downloader.balance;
 import com.hedera.mirror.common.domain.balance.AccountBalance;
 import com.hedera.mirror.common.domain.balance.AccountBalanceFile;
 import com.hedera.mirror.importer.ImporterProperties;
-import com.hedera.mirror.importer.addressbook.ConsensusNode;
 import com.hedera.mirror.importer.addressbook.ConsensusNodeService;
 import com.hedera.mirror.importer.config.DateRangeCalculator;
 import com.hedera.mirror.importer.domain.StreamFileData;
@@ -34,8 +33,13 @@ import com.hedera.mirror.importer.repository.AccountBalanceFileRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.inject.Named;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 
+@ConditionalOnProperty(
+        name = "hedera.mirror.importer.downloader.block.enabled",
+        havingValue = "false",
+        matchIfMissing = true)
 @Named
 public class AccountBalancesDownloader extends Downloader<AccountBalanceFile, AccountBalance> {
 
@@ -77,8 +81,8 @@ public class AccountBalancesDownloader extends Downloader<AccountBalanceFile, Ac
     }
 
     @Override
-    protected void onVerified(StreamFileData streamFileData, AccountBalanceFile streamFile, ConsensusNode node) {
-        super.onVerified(streamFileData, streamFile, node);
+    protected void onVerified(StreamFileData streamFileData, AccountBalanceFile streamFile) {
+        super.onVerified(streamFileData, streamFile);
         accountBalanceFileExists.set(true);
     }
 
