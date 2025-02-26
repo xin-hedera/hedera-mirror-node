@@ -552,7 +552,7 @@ class ContractCallServiceERCTokenHistoricalTest extends AbstractContractCallServ
         @ValueSource(booleans = {true, false})
         void ownerOf(final boolean isStatic) throws Exception {
             // Given
-            final var owner = accountEntityPersistWithEvmAddressHistorical(historicalRange);
+            final var owner = accountEntityPersistHistorical(historicalRange);
             final var nftToken = nftPersistHistorical(owner.toEntityId());
             tokenAccountFrozenRelationshipPersistHistorical(nftToken, owner, historicalRange);
             final var contract = testWeb3jService.deploy(ERCTestContractHistorical::deploy);
@@ -563,7 +563,7 @@ class ContractCallServiceERCTokenHistoricalTest extends AbstractContractCallServ
                     : contract.call_getOwnerOfNonStatic(getAddressFromEntity(nftToken), DEFAULT_SERIAL_NUMBER)
                             .send();
             // Then
-            assertThat(result).isEqualTo(getAliasFromEntity(owner));
+            assertThat(result).isEqualTo(getAddressFromEntity(owner));
         }
 
         @ParameterizedTest

@@ -382,8 +382,10 @@ class ContractCallServicePrecompileModificationTest extends AbstractContractCall
 
         tokenBalancePersist(treasury.toEntityId(), EntityId.of(tokenId), treasury.getBalanceTimestamp());
 
-        final var nft = nftPersistCustomizable(n -> n.tokenId(tokenId)
-                .accountId(mirrorNodeEvmProperties.isModularizedServices() ? null : treasury.toEntityId()));
+        final var nft = domainBuilder
+                .nft()
+                .customize(n -> n.tokenId(tokenId).serialNumber(1L).accountId(treasury.toEntityId()))
+                .persist();
 
         domainBuilder
                 .nftHistory()
