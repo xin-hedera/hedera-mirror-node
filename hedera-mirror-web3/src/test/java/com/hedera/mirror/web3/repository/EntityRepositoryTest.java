@@ -463,4 +463,16 @@ class EntityRepositoryTest extends Web3IntegrationTest {
                 .usingRecursiveComparison()
                 .isEqualTo(entityHistory);
     }
+
+    @Test
+    void findMaxIdEmptyDb() {
+        assertThat(entityRepository.findMaxId(0, 0)).isNull();
+    }
+
+    @Test
+    void findMaxId() {
+        final long lastId = 1111;
+        domainBuilder.entity().customize(e -> e.id(lastId)).persist();
+        assertThat(entityRepository.findMaxId(0, 0)).isEqualTo(lastId);
+    }
 }
