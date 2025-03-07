@@ -6,7 +6,7 @@ import com.hedera.mirror.common.domain.transaction.TransactionType;
 import jakarta.inject.Named;
 
 @Named
-final class TokenCreateTransformer extends AbstractBlockItemTransformer {
+final class ContractDeleteTransformer extends AbstractContractTransformer {
 
     @Override
     protected void doTransform(BlockItemTransformation blockItemTransformation) {
@@ -19,17 +19,15 @@ final class TokenCreateTransformer extends AbstractBlockItemTransformer {
                 .recordItemBuilder()
                 .transactionRecordBuilder()
                 .getReceiptBuilder();
-        receiptBuilder.setNewTotalSupply(
-                blockItemTransformation.transactionBody().getTokenCreation().getInitialSupply());
-        blockItem
-                .getStateChangeContext()
-                .getNewTokenId()
-                .map(receiptBuilder::setTokenID)
-                .orElseThrow();
+        var contractId = blockItemTransformation
+                .transactionBody()
+                .getContractDeleteInstance()
+                .getContractID();
+        resolveEvmAddress(contractId, receiptBuilder, blockItem.getStateChangeContext());
     }
 
     @Override
     public TransactionType getType() {
-        return TransactionType.TOKENCREATION;
+        return TransactionType.CONTRACTDELETEINSTANCE;
     }
 }
