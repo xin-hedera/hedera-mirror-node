@@ -4,6 +4,8 @@ package com.hedera.mirror.web3.state;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.mirror.common.CommonProperties;
+import com.hedera.mirror.common.domain.entity.SystemEntity;
 import com.hedera.mirror.web3.evm.properties.MirrorNodeEvmProperties;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -25,6 +27,7 @@ public class SystemFileLoader {
 
     private final MirrorNodeEvmProperties properties;
     private final V0490FileSchema fileSchema = new V0490FileSchema();
+    private final CommonProperties commonProperties;
 
     @Getter(lazy = true)
     private final Map<FileID, File> systemFiles = loadAll();
@@ -37,19 +40,27 @@ public class SystemFileLoader {
         var configuration = properties.getVersionedConfiguration();
 
         var files = List.of(
-                load(101, Bytes.EMPTY), // Requires a node store but these aren't used by contracts so omit
-                load(102, Bytes.EMPTY),
-                load(111, fileSchema.genesisFeeSchedules(configuration)),
-                load(112, fileSchema.genesisExchangeRates(configuration)),
-                load(121, fileSchema.genesisNetworkProperties(configuration)),
-                load(122, Bytes.EMPTY), // genesisHapiPermissions() fails to load files from the classpath
-                load(123, fileSchema.genesisThrottleDefinitions(configuration)));
+                load(
+                        SystemEntity.ADDRESS_BOOK_101,
+                        Bytes.EMPTY), // Requires a node store but these aren't used by contracts so omit
+                load(SystemEntity.ADDRESS_BOOK_102, Bytes.EMPTY),
+                load(SystemEntity.FEE_SCHEDULE, fileSchema.genesisFeeSchedules(configuration)),
+                load(SystemEntity.EXCHANGE_RATE, fileSchema.genesisExchangeRates(configuration)),
+                load(SystemEntity.NETWORK_PROPERTY, fileSchema.genesisNetworkProperties(configuration)),
+                load(
+                        SystemEntity.HAPI_PERMISSION,
+                        Bytes.EMPTY), // genesisHapiPermissions() fails to load files from the classpath
+                load(SystemEntity.THROTTLE_DEFINITION, fileSchema.genesisThrottleDefinitions(configuration)));
 
         return files.stream().collect(Collectors.toMap(File::fileId, Function.identity()));
     }
 
-    private File load(int fileNum, Bytes contents) {
-        var fileId = FileID.newBuilder().fileNum(fileNum).build();
+    private File load(SystemEntity systemFile, Bytes contents) {
+        var fileId = FileID.newBuilder()
+                .shardNum(commonProperties.getShard())
+                .realmNum(commonProperties.getRealm())
+                .fileNum(systemFile.getNum())
+                .build();
         return File.newBuilder()
                 .contents(contents)
                 .deleted(false)
