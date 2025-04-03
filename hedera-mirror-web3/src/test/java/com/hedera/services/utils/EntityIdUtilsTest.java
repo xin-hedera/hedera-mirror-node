@@ -12,6 +12,7 @@ import static com.hedera.services.utils.IdUtils.asToken;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.common.primitives.Ints;
@@ -333,6 +334,12 @@ class EntityIdUtilsTest {
                 .tokenNum(NUM)
                 .build();
         assertEquals(expectedTokenId, EntityIdUtils.toTokenId(id));
+    }
+
+    @Test
+    void toTokenIdFromNullShouldReturnNull() {
+        EntityId entityId = null;
+        assertNull(toTokenId(entityId));
     }
 
     @Test
