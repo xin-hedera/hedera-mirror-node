@@ -1467,7 +1467,7 @@ class ContractCallServicePrecompileModificationTest extends AbstractContractCall
                 keys,
                 new Expiry(
                         BigInteger.valueOf(tokenEntity.getEffectiveExpiration()),
-                        asHexedEvmAddress(new Id(0, 0, entityRenewAccountId)),
+                        toAddress(entityRenewAccountId).toHexString(),
                         BigInteger.valueOf(tokenEntity.getEffectiveExpiration())));
     }
 
@@ -1488,7 +1488,7 @@ class ContractCallServicePrecompileModificationTest extends AbstractContractCall
                 keys,
                 new Expiry(
                         BigInteger.valueOf(entity.getEffectiveExpiration()),
-                        asHexedEvmAddress(new Id(0, 0, entityRenewAccountId)),
+                        toAddress(entityRenewAccountId).toHexString(),
                         BigInteger.valueOf(entity.getEffectiveExpiration())));
     }
 }

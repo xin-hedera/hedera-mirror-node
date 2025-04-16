@@ -569,7 +569,7 @@ class ContractCallServiceTest extends AbstractContractCallServiceTest {
     void ethCallWithValueAndNotExistingSenderAddress() {
         final var receiverEntity = accountEntityWithEvmAddressPersist();
         final var receiverAddress = getAliasAddressFromEntity(receiverEntity);
-        final var notExistingAccountAddress = toAddress(EntityId.of(4325));
+        final var notExistingAccountAddress = toAddress(domainBuilder.entityId());
         persistRewardAccounts();
 
         final var serviceParameters =
