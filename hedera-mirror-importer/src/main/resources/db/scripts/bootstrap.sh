@@ -2,6 +2,12 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
+kernel_name=$(uname -s)
+if [[ "$kernel_name" != "Linux" ]]; then
+  echo "[ERROR] This script is designed to run only on Linux. Detected OS: $kernel_name. Exiting." >&2
+  exit 1
+fi
+
 exec 9>&2
 
 set -m # Start a new process group and detach from terminal
@@ -11,7 +17,12 @@ exec 1>/dev/null 2>>bootstrap.log
 exec 3>&2
 exec 2>/dev/null
 
-PID_FILE="bootstrap.pid"
+SCRIPT_TEMP_DIR="./temp"
+
+rm -rf "$SCRIPT_TEMP_DIR"
+mkdir -p "$SCRIPT_TEMP_DIR"
+
+PID_FILE="$SCRIPT_TEMP_DIR/bootstrap.pid"
 script_name=$(basename "$0")
 
 # Check if another instance of the script is already running
@@ -49,16 +60,21 @@ REQUIRED_BASH_MINOR=3
 DEBUG_MODE=${DEBUG_MODE:-false}
 
 LOG_FILE="bootstrap.log"
-LOG_FILE_LOCK="$LOG_FILE.lock"
 TRACKING_FILE="bootstrap_tracking.txt"
-LOCK_FILE="bootstrap_tracking.lock"
 DISCREPANCY_FILE="bootstrap_discrepancies.log"
-DISCREPANCY_FILE_LOCK="$DISCREPANCY_FILE.lock"
 PROGRESS_FILE="bootstrap_progress.log"
 PROGRESS_INTERVAL=${PROGRESS_INTERVAL:-10}
 PROGRESS_DB_TABLE="bootstrap_manifest_progress"
-export MONITOR_STATE_FILE="/tmp/bootstrap_monitor_state.txt"
-MONITOR_STOP_SIGNAL_FILE="/tmp/bootstrap_monitor.stop"
+
+LOG_FILE_LOCK="$SCRIPT_TEMP_DIR/$LOG_FILE.lock"
+TRACKING_FILE_TMP="$SCRIPT_TEMP_DIR/bootstrap_tracking.tmp"
+TRACKING_LOCK_FILE="$SCRIPT_TEMP_DIR/bootstrap_tracking.lock"
+DISCREPANCY_FILE_LOCK="$SCRIPT_TEMP_DIR/$DISCREPANCY_FILE.lock"
+
+MONITOR_TEMP_DIR="$SCRIPT_TEMP_DIR/monitor"
+mkdir -p "$MONITOR_TEMP_DIR"
+export MONITOR_STATE_FILE="$MONITOR_TEMP_DIR/bootstrap_monitor_state.txt"
+MONITOR_STOP_SIGNAL_FILE="$MONITOR_TEMP_DIR/bootstrap_monitor.stop"
 
 # Required system tools
 # Note: A decompressor (rapidgzip, igzip, or gunzip) is checked separately
@@ -72,7 +88,7 @@ export DECOMPRESSOR_CHECKED=false
 MISSING_TOOLS=()
 
 export DB_SKIP_FLAG_FILE="SKIP_DB_INIT"
-export CLEANUP_IN_PROGRESS_FILE="BOOTSTRAP_CLEANUP"
+export CLEANUP_IN_PROGRESS_FILE="$SCRIPT_TEMP_DIR/BOOTSTRAP_CLEANUP"
 
 USE_FULL_DB=""
 MANIFEST_FILE=""
@@ -239,19 +255,16 @@ kill_descendants() {
 cleanup() {
   disable_pipefail
   local trap_type="$1"
+  local exit_code=1
 
   log "Cleanup function triggered with trap type: $trap_type"
-
-  if [[ -f "$LOCK_FILE" ]]; then
-    rm -f "$LOCK_FILE"
-  fi
 
   if [[ "$trap_type" == "INT" || "$trap_type" == "TERM" || "$trap_type" == "PIPE" ]]; then
     exec 2>/dev/null
     touch "$CLEANUP_IN_PROGRESS_FILE"
 
-    if [[ -f "${TRACKING_FILE}.tmp" ]]; then
-      mv "${TRACKING_FILE}.tmp" "$TRACKING_FILE"
+    if [[ -f "$TRACKING_FILE_TMP" ]]; then
+      mv "$TRACKING_FILE_TMP" "$TRACKING_FILE"
     fi
 
     pkill -9 psql 2>/dev/null || true
@@ -267,37 +280,29 @@ cleanup() {
     done
 
     pkill -9 -P $$ 2>/dev/null || true
-
     log "Script interrupted. All processes terminated." "TERMINATE"
 
     wait 2>/dev/null || true
-
-    if command -v psql >/dev/null 2>&1; then
-      log "Attempting final cleanup of temporary progress table..." "DEBUG"
-
-      if [[ "$trap_type" != "EXIT" ]] || [[ $(jobs -rp | wc -l) -eq 0 ]]; then
-        psql -q -c "DROP TABLE IF EXISTS ${PROGRESS_DB_TABLE};" >/dev/null 2>&1 || true
-      else
-        log "Skipping table drop during EXIT trap as processes are still running" "DEBUG"
-      fi
-    fi
-
-    rm -f "$PID_FILE" "$CLEANUP_IN_PROGRESS_FILE" "$MONITOR_STATE_FILE" "$PROGRESS_FILE" "$LOG_FILE_LOCK"
-
-    exit 1
   fi
 
   if command -v psql >/dev/null 2>&1; then
     log "Attempting final cleanup of temporary progress table..." "DEBUG"
-
-    if [[ "$trap_type" != "EXIT" ]] || [[ $(jobs -rp | wc -l) -eq 0 ]]; then
-      psql -q -c "DROP TABLE IF EXISTS ${PROGRESS_DB_TABLE};" >/dev/null 2>&1 || true
-    else
-      log "Skipping table drop during EXIT trap as processes are still running" "DEBUG"
-    fi
+    psql -q -c "DROP TABLE IF EXISTS ${PROGRESS_DB_TABLE};" >/dev/null 2>&1 || true
   fi
 
-  rm -f "$PID_FILE" "$CLEANUP_IN_PROGRESS_FILE" "$PROGRESS_FILE" "$LOG_FILE_LOCK"
+  rm -f "$PID_FILE" "$CLEANUP_IN_PROGRESS_FILE" "$PROGRESS_FILE" || true
+
+  if [[ "$trap_type" != "INT" && "$trap_type" != "TERM" && "$trap_type" != "PIPE" ]]; then
+      if [[ -v overall_success ]] && [[ "$overall_success" == true ]]; then
+          exit_code=0
+      else
+          exit_code=1
+      fi
+  fi
+
+  if [[ "$trap_type" != "EXIT" ]]; then
+    exit "$exit_code"
+  fi
 }
 
 write_tracking_file() {
@@ -338,14 +343,14 @@ write_tracking_file() {
     fi
 
     # Remove any existing entry for this file
-    grep -v \"^$basename_file \" \"$TRACKING_FILE\" > \"${TRACKING_FILE}.tmp\" 2>/dev/null || true
-    mv \"${TRACKING_FILE}.tmp\" \"$TRACKING_FILE\"
+    grep -v \"^$basename_file \" \"$TRACKING_FILE\" > \"$TRACKING_FILE_TMP\" 2>/dev/null || true
+    mv \"$TRACKING_FILE_TMP\" \"$TRACKING_FILE\"
 
     # Add the updated line with the final status and hash
     echo \"$basename_file \$new_status \$new_hash_status\" >> \"$TRACKING_FILE\"
   "
 
-  with_lock "$LOCK_FILE" "$cmd"
+  with_lock "$TRACKING_LOCK_FILE" "$cmd"
 }
 
 read_tracking_status() {
@@ -362,6 +367,7 @@ collect_import_tasks() {
   find "$IMPORT_DIR" -type f -name "*.csv.gz"
 }
 
+# shellcheck disable=SC2317
 write_discrepancy() {
   local file="$1"
   local expected_count="$2"
@@ -426,8 +432,10 @@ load_manifest_to_db() {
     return 1
   }
 
+  local sql_temp_dir="$SCRIPT_TEMP_DIR/sql"
+  mkdir -p "$sql_temp_dir"
   local insert_sql_file
-  insert_sql_file=$(mktemp)
+  insert_sql_file=$(mktemp "$sql_temp_dir/insert_sql.XXXXXX")
   echo "BEGIN;" > "$insert_sql_file"
 
   local filename count status
@@ -555,8 +563,8 @@ process_manifest() {
     exit 1
   fi
 
-  if [[ -f "$LOCK_FILE" ]]; then
-    rm -f "$LOCK_FILE"
+  if [[ -f "$TRACKING_LOCK_FILE" ]]; then
+    rm -f "$TRACKING_LOCK_FILE"
   fi
 
   if [[ "$PGUSER" == "mirror_node" && "$PGDATABASE" == "mirror_node" ]]; then
@@ -567,13 +575,13 @@ process_manifest() {
 get_table_name_from_filename() {
   local filename="$1"
   local basename_file
-
   basename_file=$(basename "$filename")
 
-  if [[ "$basename_file" =~ _p[0-9]{4}_[0-9]{2}\.csv\.gz$ ]]; then
-    echo "${basename_file%_p*}"
+  local name="${basename_file%.csv.gz}"
+  if [[ "$name" =~ ^(.*)_p[0-9]{4}_[0-9]{2}(_atma)?$ ]]; then
+    echo "${BASH_REMATCH[1]}"
   else
-    basename "$basename_file" .csv.gz
+    echo "$name"
   fi
 }
 
@@ -645,6 +653,7 @@ validate_special_files() {
   return 0
 }
 
+# shellcheck disable=SC2317
 retry_query() {
   local query="$1"
   local retries=3
@@ -657,7 +666,7 @@ retry_query() {
   status=$?
 
   for ((i=1; i<retries; i++)); do
-    if [ $status -eq 0 ]; then
+    if [ "$status" -eq 0 ]; then
       break
     fi
 
@@ -668,45 +677,6 @@ retry_query() {
   done
 
   echo "${result}:${status}"
-}
-
-get_partition_timestamps() {
-  local filename="$1"
-  local basename_file
-  basename_file=$(basename "$filename")
-
-  if [[ "$basename_file" =~ _p([0-9]{4})_([0-9]{2})\.csv\.gz$ ]]; then
-    local year="${BASH_REMATCH[1]}"
-    local month="${BASH_REMATCH[2]}"
-
-    # Calculate start timestamp (first day of month) as nanoseconds
-    local start_ts
-    start_ts=$(psql -v ON_ERROR_STOP=1 -q -Atc "SELECT (EXTRACT(EPOCH FROM TIMESTAMP '${year}-${month}-01 00:00:00.000000000') * 1000000000)::bigint;")
-
-    # Calculate end timestamp (last day of the month)
-    local end_day
-    if [[ "$month" == "02" ]]; then
-      # Handle February differently for leap years
-      # Leap year if: divisible by 4 AND (not divisible by 100 OR divisible by 400)
-      if (( year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) )); then
-        end_day=29
-      else
-        end_day=28
-      fi
-    elif [[ "$month" == "04" || "$month" == "06" || "$month" == "09" || "$month" == "11" ]]; then
-      end_day=30
-    else
-      end_day=31
-    fi
-
-    # Calculate end timestamp (last day of month, end of day) as nanoseconds
-    local end_ts
-    end_ts=$(psql -v ON_ERROR_STOP=1 -q -Atc "SELECT (EXTRACT(EPOCH FROM TIMESTAMP '${year}-${month}-${end_day} 23:59:59.999999999') * 1000000000)::bigint;")
-
-    if [[ -n "$start_ts" && -n "$end_ts" ]]; then
-      echo "${start_ts}:${end_ts}:${year}:${month}"
-    fi
-  fi
 }
 
 verify_postgres_connection() {
@@ -737,7 +707,6 @@ import_file() {
   local filename="$1"
   local table
   local absolute_file
-  local is_partitioned
   local file
   file=$(basename "$filename")
   local relative_path
@@ -799,71 +768,114 @@ import_file() {
 
   table=$(get_table_name_from_filename "$filename")
   if [[ -z "$table" ]]; then
-    log "Could not determine table name from filename: $file" "ERROR"
+    log "Could not determine table name from filename: $file, skipping import" "ERROR"
     return 1
-  fi
-
-  # Determine which timestamp column to use for queries
-  # record_file table is a special case that uses consensus_end column for timestamps
-  # instead of consensus_timestamp which is used by all other tables
-  local timestamp_column="consensus_timestamp"
-  if [[ "$table" == "record_file" ]]; then
-    timestamp_column="consensus_end"
-  fi
-
-  if [[ "$file" =~ _p[0-9]{4}_[0-9]{2}\.csv\.gz$ ]]; then
-    is_partitioned=true
-  else
-    is_partitioned=false
   fi
 
   log "Importing into table $table from $filename, PID: $current_pid"
   write_tracking_file "$filename" "IN_PROGRESS"
 
+  local job_temp_dir="$SCRIPT_TEMP_DIR/import-jobs/$current_pid"
+  mkdir -p "$job_temp_dir" || { log "Failed to create job temp directory $job_temp_dir" "ERROR"; return 1; }
 
   local stdout_file
-  stdout_file=$(mktemp)
+  stdout_file=$(mktemp "$job_temp_dir/stdout.XXXXXX") || { log "mktemp failed for stdout_file: $?" "ERROR"; return 1; }
   local stderr_file
-  stderr_file=$(mktemp)
+  stderr_file=$(mktemp "$job_temp_dir/stderr.XXXXXX") || { log "mktemp failed for stderr_file: $?" "ERROR"; return 1; }
   local decomp_err_file
-  decomp_err_file=$(mktemp)
+  decomp_err_file=$(mktemp "$job_temp_dir/decomp_err.XXXXXX") || { log "mktemp failed for decomp_err_file: $?" "ERROR"; return 1; }
+  local row_counter
+  row_counter=$(mktemp "$job_temp_dir/row_count.XXXXXX") || { log "mktemp failed for row_counter: $?" "ERROR"; return 1; }
+  local header_stderr_file
+  header_stderr_file=$(mktemp "$job_temp_dir/header_stderr.XXXXXX") || { log "mktemp failed for header_stderr_file: $?" "ERROR"; return 1; }
+  log "Created header_stderr_file: $header_stderr_file" "DEBUG"
+  local python_stderr_file
+  python_stderr_file=$(mktemp "$job_temp_dir/python_header_stderr.XXXXXX") || { log "mktemp failed for python_stderr_file: $?" "ERROR"; return 1; }
 
   # Create a named pipe for data transfer
   local csv_fifo
-  csv_fifo=$(mktemp -u)
-  mkfifo "$csv_fifo"
+  csv_fifo=$(mktemp -u "$job_temp_dir/csv_fifo.XXXXXX") || { log "mktemp -u failed for csv_fifo: $?" "ERROR"; return 1; }
+  mkfifo "$csv_fifo" || { log "mkfifo failed for $csv_fifo: $?" "ERROR"; rm -f "$csv_fifo"; return 1; }
   log "Created named pipe for data transfer: $csv_fifo" "DEBUG"
 
-  local row_counter
-  row_counter=$(mktemp)
-  local csv_header
-  csv_header=$("$DECOMPRESS_TOOL" "${DECOMPRESS_FLAGS[@]}" "$absolute_file" | python3 -c 'import sys; print(next(sys.stdin, "").rstrip("\r\n"))')
+  local header_temp_file
+  header_temp_file=$(mktemp "$job_temp_dir/header.XXXXXX") || { log "mktemp failed for header_temp_file: $?" "ERROR"; return 1; }
 
-  if [[ -z "$csv_header" ]]; then
-    log "Could not read header from $file" "ERROR"
+  set +e
+  "$DECOMPRESS_TOOL" "${DECOMPRESS_FLAGS[@]}" "$absolute_file" | head -n1 > "$header_temp_file" 2>"$decomp_err_file"
+  local exit_codes=("${PIPESTATUS[@]}")
+  set -e
+
+  local decomp_status=${exit_codes[0]:-UNKNOWN}
+  local head_status=${exit_codes[1]:-UNKNOWN}
+
+  local header_content
+  header_content=$(cat "$header_temp_file" 2>/dev/null || echo "File '$header_temp_file' empty or unreadable")
+  log "Header content read: [$header_content]" "DEBUG"
+  local error_content
+  error_content=$(cat "$decomp_err_file" 2>/dev/null || echo "File '$decomp_err_file' empty or unreadable")
+  log "Decompression error content read: [$error_content]" "DEBUG"
+
+  log "Header extraction pipe completed for $file. Decompress exit code: $decomp_status, Head exit code: $head_status" "DEBUG"
+
+  local csv_header
+  csv_header=$(cat "$header_temp_file")
+
+  rm -f "$header_temp_file"
+
+  if [[ $decomp_status -ne 0 && $decomp_status -ne 141 ]]; then
+    log "Header decompression failed for $file (Exit code: $decomp_status)" "ERROR"
     write_tracking_file "$filename" "FAILED_TO_IMPORT"
     ((failed_imports++))
+    log "Exiting import_file for $file due to header decompression failure" "ERROR"
+    rm -f "$csv_fifo"
+    return 1
+  elif [[ $head_status -ne 0 ]]; then
+    log "Head command failed for $file (Exit code: $head_status)" "ERROR"
+    write_tracking_file "$filename" "FAILED_TO_IMPORT"
+    ((failed_imports++))
+    log "Exiting import_file for $file due to head command failure" "ERROR"
+    rm -f "$csv_fifo"
+    return 1
+  elif [[ -z "$csv_header" ]]; then
+    log "Could not read header from $file (Empty header string obtained)" "ERROR"
+    write_tracking_file "$filename" "FAILED_TO_IMPORT"
+    ((failed_imports++))
+    log "Exiting import_file for $file due to empty header" "ERROR"
+    rm -f "$csv_fifo"
     return 1
   fi
 
-  # Safely generate column list from CSV header using Python
+  log "Successfully extracted header for $file." "DEBUG"
+
+  # Safely generate column list from CSV header using Python with CSV module
   local columns
   columns=$(python3 -c "
 import sys
+import csv
+import io
 
 try:
     # Convert header to properly quoted column list for SQL
-    header = '$csv_header'
-    columns = header.split(',')
-    quoted_columns = [\"\\\"\"+col+\"\\\"\" for col in columns]
-    print(','.join(quoted_columns))
+    header_line = '''$csv_header'''
+    csv_reader = csv.reader(io.StringIO(header_line))
+    header_fields = next(csv_reader)
+
+    quoted_columns = []
+    for col in header_fields:
+        # Double-quote for SQL
+        quoted_columns.append('\"' + col + '\"')
+
+    result = ','.join(quoted_columns)
+    print(result)
 except Exception as e:
     print(f'Error: {str(e)}', file=sys.stderr)
     sys.exit(1)
-")
+" 2>"$python_stderr_file")
+  python_exit_code=$?
 
-  if [[ $? -ne 0 || -z "$columns" ]]; then
-    log "Failed to generate column list from CSV header" "ERROR"
+  if [[ $python_exit_code -ne 0 || -z "$columns" ]]; then
+    log "Failed to generate column list from CSV header for $file" "ERROR"
     write_tracking_file "$filename" "FAILED_TO_IMPORT"
     ((failed_imports++))
     return 1
@@ -873,8 +885,9 @@ except Exception as e:
 
   local db_columns
   db_columns=$(psql -t -c "SELECT STRING_AGG(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_name = '$table' AND table_schema = 'public'")
-  db_columns=$(echo "$db_columns" | tr -d ' ')
+  db_query_exit_code=$?
 
+  db_columns=$(echo "$db_columns" | tr -d ' ')
 
   local csv_column_count
   csv_column_count=$(echo "$csv_header" | tr ',' '\n' | wc -l)
@@ -882,9 +895,9 @@ except Exception as e:
   db_column_count=$(echo "$db_columns" | awk -F, '{print NF}')
 
   if [[ "$csv_column_count" != "$db_column_count" ]]; then
-    log "Column count mismatch for $table: CSV has $csv_column_count columns, DB table has $db_column_count columns. Using CSV header for mapping." "WARN"
+    log "Column count mismatch for $table (DB Query Exit: $db_query_exit_code): CSV has $csv_column_count columns, DB table has $db_column_count columns. Using CSV header for mapping." "WARN"
   else
-    log "Column count matches between CSV and database for $table ($csv_column_count columns)" "DEBUG"
+    log "Column count matches between CSV and database for $table ($csv_column_count columns) (DB Query Exit: $db_query_exit_code)" "DEBUG"
   fi
 
   # Start decompression in background, writing to named pipe with on-the-fly hash calculation
@@ -895,6 +908,8 @@ except Exception as e:
   # Import using named pipe, with explicit column mapping for all tables
   log "Starting import process for $file..." "DEBUG"
   # Count rows using Python to handle quoted fields and embedded newlines in the CSV
+
+  set +e
   cat "$csv_fifo" | tee >(python3 -c '
 import sys
 import csv
@@ -920,24 +935,35 @@ except Exception as e:
     else:
         print(0)
 ' > "$row_counter") 2>/dev/null | \
-    dd bs=16M iflag=fullblock status=none 2>/dev/null | \
-    PGAPPNAME="$PGAPPNAME" \
-    psql -v ON_ERROR_STOP=1 --single-transaction \
-    -q -c "COPY $table ($columns) FROM STDIN WITH CSV HEADER DELIMITER ',';" \
-    >"$stdout_file" 2>"$stderr_file"
-  psql_exit_code=$?
+      dd bs=16M iflag=fullblock status=none 2>/dev/null | \
+      PGAPPNAME="$PGAPPNAME" \
+      psql -v ON_ERROR_STOP=1 --single-transaction \
+      -q -c "COPY $table ($columns) FROM STDIN WITH CSV HEADER DELIMITER ',';" \
+      >"$stdout_file" 2>"$stderr_file"
+  # Capture PIPESTATUS for the entire pipeline
+  # Note: Indices depend on pipeline length: 0=cat, 1=tee, 2=dd, 3=psql
+  pipeline_exit_codes=("${PIPESTATUS[@]}")
+  set -e
+
+  local cat_exit_code=${pipeline_exit_codes[0]:-UNKNOWN}
+  local tee_or_python_exit_code=${pipeline_exit_codes[1]:-UNKNOWN}
+  local dd_exit_code=${pipeline_exit_codes[2]:-UNKNOWN}
+  local psql_exit_code=${pipeline_exit_codes[3]:-UNKNOWN}
+
+  log "Pipeline exit codes for $file: cat=$cat_exit_code, tee/python=$tee_or_python_exit_code, dd=$dd_exit_code, psql=$psql_exit_code" "DEBUG"
 
   wait $decompress_pid
   decompress_exit_code=$?
 
   if jobs -p | grep -q .; then
-      log "Waiting for background processes to complete..." "DEBUG"
-      wait
+    log "Waiting for background processes to complete..." "DEBUG"
+    wait
   fi
 
   local total_lines
   total_lines=$(cat "$row_counter")
   local import_pipe_row_count=$((total_lines - 1))
+
   log "Import pipeline row count for $file: $import_pipe_row_count (total lines including header: $total_lines)" "DEBUG"
 
   log "Decompression exit code: $decompress_exit_code, PSQL exit code: $psql_exit_code for $file" "DEBUG"
@@ -946,26 +972,8 @@ except Exception as e:
   cat "$stderr_file" >> "$LOG_FILE"
   cat "$decomp_err_file" >> "$LOG_FILE"
 
-  rm -f "$stdout_file" "$stderr_file" "$decomp_err_file"
-
-  # Clean up named pipe and row counter
-  rm -f "$csv_fifo" "$row_counter"
-
-  # Check for decompression errors (ignoring SIGPIPE which is exit code 141)
-  if [ $decompress_exit_code -ne 0 ] && [ $decompress_exit_code -ne 141 ]; then
-    log "Decompression failed for $file, exit code: $decompress_exit_code" "ERROR"
-    write_tracking_file "$filename" "FAILED_TO_IMPORT"
-    ((failed_imports++))
-    return 1
-  fi
-
-  # Check for psql errors
-  if [ $psql_exit_code -ne 0 ]; then
-    log "Import failed for file: $file, psql exit code: $psql_exit_code" "ERROR"
-
-    if [[ -s "$stderr_file" ]]; then
-      log "PostgreSQL error: $(cat "$stderr_file")" "ERROR"
-    fi
+  if [[ $psql_exit_code -ne 0 ]]; then
+    log "Import failed for file: $file (Exit Code: $psql_exit_code). PSQL Error: [$(cat "$stderr_file" 2>/dev/null || echo "File '$stderr_file' empty or unreadable")]" "ERROR"
 
     # Try to diagnose common issues
     log "Diagnosing import issue for $file..."
@@ -979,7 +987,33 @@ except Exception as e:
 
     write_tracking_file "$filename" "FAILED_TO_IMPORT"
     ((failed_imports++))
+    log "Exiting import_file for $file due to psql failure (exit code: $psql_exit_code)" "ERROR"
     return 1
+  fi
+
+  if [[ $tee_or_python_exit_code -ne 0 ]]; then
+      log "Row counter (Python) failed with exit code $tee_or_python_exit_code, even though psql exited 0 for $file." "DEBUG"
+      write_tracking_file "$filename" "FAILED_TO_IMPORT"
+      ((failed_imports++))
+      log "Exiting import_file for $file due to row counter failure." "ERROR"
+      return 1
+  fi
+
+  if [[ $decompress_exit_code -ne 0 ]] && [ $decompress_exit_code -ne 141 ]; then
+    log "Decompression failed for $file, exit code: $decompress_exit_code" "ERROR"
+    write_tracking_file "$filename" "FAILED_TO_IMPORT"
+    ((failed_imports++))
+    log "Exiting import_file for $file due to decompression failure" "ERROR"
+    return 1
+  fi
+
+  if [[ $cat_exit_code -ne 0 ]] || ! [[ "$total_lines" =~ ^[0-9]+$ ]]; then
+      log "Error reading row counter or non-numeric value for $file. Raw value: '$total_lines' (cat exit code: $cat_exit_code)" "ERROR"
+      log "All pipeline exit codes - cat: $cat_exit_code, tee/python: $tee_or_python_exit_code, dd: $dd_exit_code, psql: $psql_exit_code" "ERROR"
+      write_tracking_file "$filename" "FAILED_TO_IMPORT"
+      ((failed_imports++))
+      log "Exiting import_file for $file due to row counter read/validation failure" "ERROR"
+      return 1
   fi
 
   log "Successfully imported $file"
@@ -995,82 +1029,10 @@ except Exception as e:
     write_tracking_file "$filename" "IMPORTED" "HASH_VERIFIED"
     return 0
   else
-    log "Import pipeline row count ($import_pipe_row_count) doesn't match expected count ($expected_count) for $file, falling back to DB row count verification..." "WARN"
+    log "Import pipeline row count ($import_pipe_row_count) doesn't match expected count ($expected_count) for $file. Proceeding to boundary check..." "WARN"
   fi
 
-  # Verify row count from database as a fallback
-  local actual_count
-  local query_result
-
-  log "Starting DB row count verification query for $file..." "DEBUG"
-  if [[ "$is_partitioned" == "true" ]]; then
-    # For partitioned tables, extract time range from filename
-    local timestamp_info
-    timestamp_info=$(get_partition_timestamps "$filename")
-
-    if [[ -n "$timestamp_info" ]]; then
-      IFS=':' read -r start_ts end_ts year month <<< "$timestamp_info"
-      query_result=$(retry_query "SELECT COUNT(*) FROM ${table} WHERE ${timestamp_column} BETWEEN ${start_ts} AND ${end_ts};" "Timestamp-based count query for ${file}")
-    else
-      log "Could not extract timestamp information from filename: ${file}" "ERROR"
-      write_tracking_file "$filename" "IMPORTED" "UNVERIFIED_COUNT"
-      return 0
-    fi
-  else
-    # For non-partitioned tables, use a simple SELECT COUNT(*)
-    query_result=$(retry_query "SELECT COUNT(*) FROM ${table};" "Count query for ${file}")
-  fi
-  log "Finished DB row count verification query for $file." "DEBUG"
-
-  IFS=':' read -r actual_count psql_status <<< "$query_result"
-
-  if [ $psql_status -eq 0 ]; then
-    if [[ "$actual_count" == "$expected_count" ]]; then
-      log "Row count verified from database: $actual_count (expected: $expected_count)"
-      write_tracking_file "$filename" "IMPORTED" "HASH_VERIFIED"
-      return 0
-    else
-      log "Row count mismatch for $file. Expected: $expected_count, Actual: $actual_count" "ERROR"
-      write_discrepancy "$file" "ROW_COUNT_MISMATCH" "$expected_count" "$actual_count"
-      write_tracking_file "$filename" "FAILED_TO_IMPORT"
-      ((failed_imports++))
-      return 1
-    fi
-  fi
-
-  # In case the SELECT COUNT(*) failed
-  log "Failed to verify row count from DB for $file, falling back to boundary check..." "ERROR"
-
-  # For partitioned tables, try boundary check as a fallback
-  if [[ "$is_partitioned" == "true" && -n "$timestamp_info" ]]; then
-    log "Attempting boundary check for partitioned file: ${file}"
-
-    local boundary_count
-    local boundary_status
-    log "Starting boundary check query for $file..." "DEBUG"
-    boundary_count=$(psql -v ON_ERROR_STOP=1 -q -Atc "SELECT COUNT(*) FROM ${table} WHERE ${timestamp_column} IN (${start_ts}, ${end_ts});")
-    boundary_status=$?
-    log "Finished boundary check query for $file." "DEBUG"
-
-    if [ $boundary_status -eq 0 ]; then
-      # Check if both boundary timestamps exist (count should be 2)
-      if [ "$boundary_count" -eq 2 ]; then
-        log "Boundary check successful for ${file}, both start and end timestamps found"
-        log "Using manifest row count ${expected_count} based on boundary verification"
-        write_tracking_file "$filename" "IMPORTED" "HASH_VERIFIED"
-        return 0
-      else
-        log "Boundary check found ${boundary_count}/2 boundary timestamps for ${file}" "WARN"
-      fi
-    else
-      log "Fallback boundary check failed for ${file}" "ERROR"
-    fi
-  else
-    log "Skipping boundary check: is_partitioned=${is_partitioned}, timestamp_info=${timestamp_info}" "WARN"
-  fi
-
-  # If boundary check failed, try a simple EXISTS check as a last resort
-  log "Final count query failure for ${file}, attempting existence check as a last resort..." "WARN"
+  log "Primary row count failed for ${file}, attempting generic existence check..." "WARN"
 
   local existence_check
   log "Starting existence check query for $file..." "DEBUG"
@@ -1203,6 +1165,9 @@ monitor_progress() {
   # Set locale for proper number formatting with thousands separators
   export LC_NUMERIC="en_US.UTF-8"
 
+  mkdir -p "$MONITOR_TEMP_DIR"
+  trap 'log "Monitor self-cleanup trap triggered for $MONITOR_TEMP_DIR" "DEBUG"; rm -rf "$MONITOR_TEMP_DIR"' EXIT
+
   sleep 5
   log "Starting progress monitor (Interval: ${PROGRESS_INTERVAL}s, Output: ${PROGRESS_FILE})"
 
@@ -1217,7 +1182,7 @@ monitor_progress() {
   while true; do
     # Check for stop signal
     if [[ -f "$MONITOR_STOP_SIGNAL_FILE" ]]; then
-      log "Monitor stop signal received. Exiting monitor loop." "INFO"
+      log "Monitor stop signal received. Exiting monitor loop."
       break
     fi
 
@@ -1254,9 +1219,9 @@ monitor_progress() {
     fi
 
     local stderr_file
-    stderr_file=$(mktemp)
+    stderr_file=$(mktemp "$MONITOR_TEMP_DIR/stderr.XXXXXX") || { log "mktemp failed for stderr_file in monitor_progress: $?" "ERROR"; return 1; }
     local temp_data
-    temp_data=$(mktemp)
+    temp_data=$(mktemp "$MONITOR_TEMP_DIR/temp_data.XXXXXX") || { log "mktemp failed for temp_data in monitor_progress: $?" "ERROR"; return 1; }
 
     psql -X -q -v ON_ERROR_STOP=1 <<EOF > "$temp_data" 2>"$stderr_file"
 \\pset format unaligned
@@ -1289,15 +1254,12 @@ EOF
 
     if [[ $psql_status -ne 0 ]]; then
       log "Progress monitor query failed with status: $psql_status" "ERROR"
-
-      if [[ -s "$stderr_file" ]]; then
-        log "PostgreSQL query error: $(cat "$stderr_file")" "ERROR"
+      log "PostgreSQL error output: [$(cat "$stderr_file" 2>/dev/null || echo 'Error reading stderr file or file empty')" "ERROR"
+      if [[ -s "$temp_data" ]]; then
+        log "Partial query output: $(cat "$temp_data")" "DEBUG"
       fi
-
       echo "ERROR: Progress monitoring query failed, progress monitor will not be displayed" > "$PROGRESS_FILE"
-
-      rm -f "$temp_data"
-      rm -f "$stderr_file"
+      rm -f "$temp_data" "$stderr_file"
       sleep "$PROGRESS_INTERVAL"
       continue
     fi
@@ -1307,7 +1269,7 @@ EOF
       printf "%-32s %-18s %-16s %-15s %-15s\n" "$(printf -- '-%.0s' {1..32})" "$(printf -- '-%.0s' {1..18})" "$(printf -- '-%.0s' {1..16})" "$(printf -- '-%.0s' {1..15})" "$(printf -- '-%.0s' {1..15})"
 
       local new_state
-      new_state=$(mktemp)
+      new_state=$(mktemp "$MONITOR_TEMP_DIR/new_state.XXXXXX") || { log "mktemp failed for new_state in monitor_progress: $?" "ERROR"; return 1; }
 
       while IFS='|' read -r filename tuples_processed expected_count; do
         if [[ -z "$filename" ]]; then
@@ -1365,14 +1327,24 @@ EOF
   done
 
   rm -f "$MONITOR_STOP_SIGNAL_FILE"
+
+  if [[ -f "$PROGRESS_FILE" ]]; then
+    log "Monitor cleaning up progress file: $PROGRESS_FILE" "DEBUG"
+    rm -f "$PROGRESS_FILE"
+  fi
 }
 
 print_final_statistics() {
+  local special_file_count=2  # schema.sql.gz and MIRRORNODE_VERSION.gz
+  total_jobs_adjusted=$((total_jobs + special_file_count))
+
   log "===================================================="
   log "Import statistics:"
-  log "Total files processed: $((total_jobs + skipped_jobs))"
+  log "Total files processed: $((total_jobs_adjusted + skipped_jobs))"
   log "Files skipped (already imported): $skipped_jobs"
-  log "Files attempted to import: $total_jobs"
+  log "Regular files attempted to import: $total_jobs"
+  log "Special files processed: $special_file_count"
+  log "Total attempted imports: $total_jobs_adjusted"
   log "Files completed: $completed_jobs"
   log "Files failed: $failed_imports"
   log "Files with inconsistent status: $inconsistent_files"
@@ -1578,7 +1550,7 @@ init_cmd="for file in \"\${files[@]}\"; do
   fi
 done"
 
-with_lock "$LOCK_FILE" "$init_cmd"
+with_lock "$TRACKING_LOCK_FILE" "$init_cmd"
 
 # Initialize variables for background processes
 overall_success=true
@@ -1591,14 +1563,15 @@ export -f \
   log show_help check_bash_version check_required_tools \
   determine_decompression_tool kill_descendants cleanup write_tracking_file read_tracking_status \
   collect_import_tasks write_discrepancy source_bootstrap_env process_manifest validate_file \
-  validate_special_files initialize_database import_file get_table_name_from_filename retry_query get_partition_timestamps \
+  validate_special_files initialize_database import_file get_table_name_from_filename retry_query \
   find_full_path verify_postgres_connection with_lock print_final_statistics
 
 export \
   DECOMPRESS_TOOL DECOMPRESS_FLAGS BOOTSTRAP_ENV_FILE DISCREPANCY_FILE \
   IMPORT_DIR LOG_FILE MANIFEST_FILE TRACKING_FILE LOCK_FILE MAX_JOBS \
   PID_FILE LOG_FILE_LOCK DISCREPANCY_FILE_LOCK PROGRESS_FILE PROGRESS_INTERVAL \
-  PROGRESS_DB_TABLE MONITOR_STATE_FILE MONITOR_STOP_SIGNAL_FILE
+  PROGRESS_DB_TABLE MONITOR_STATE_FILE MONITOR_STOP_SIGNAL_FILE \
+  SCRIPT_TEMP_DIR MONITOR_TEMP_DIR DEBUG_MODE
 
 declare -A pid_to_file
 
@@ -1609,13 +1582,15 @@ skipped_jobs=0
 for file in "${files[@]}"; do
   base_file=$(basename "$file")
   current_status=$(read_tracking_status "$file")
+  log "Checking file: $base_file - Status read from tracking: [$current_status]" "DEBUG"
   if [[ "$current_status" == "IMPORTED" ]]; then
     log "Skipping already imported file: $base_file"
     ((skipped_jobs++))
     continue
+  else
+    log "Processing file with non-IMPORTED status: $base_file (Current status: $current_status)"
+    write_tracking_file "$base_file" "IN_PROGRESS"
   fi
-
-  write_tracking_file "$base_file" "IN_PROGRESS"
 
   while [[ $(jobs -rp | wc -l) -ge $MAX_JOBS ]]; do
     sleep 1
@@ -1631,6 +1606,8 @@ for file in "${files[@]}"; do
 done
 
 log "All import jobs started. Total jobs: $total_jobs, PIDs count: ${#pids[@]}"
+
+disable_pipefail
 
 # Wait for all import jobs to finish (excluding monitor)
 log "Waiting for all import jobs to complete..."
@@ -1651,13 +1628,14 @@ for pid in "${import_pids[@]}"; do
       overall_success=false
       log "Import job failed for file: '$base_file' (PID: $pid, Exit Status: $exit_status)" "ERROR"
 
-      stderr_file="$LOG_DIR/${base_file}.stderr"
-      if [[ -s "$stderr_file" ]]; then
-          log "--- Stderr for $base_file (PID: $pid) ---" "ERROR"
-          log "$(sed 's/^/    /' "$stderr_file")" "ERROR"
-          log "--- End Stderr for $base_file (PID: $pid) ---" "ERROR"
+      job_temp_dir="$SCRIPT_TEMP_DIR/import-jobs/$pid"
+      actual_stderr_file=$(find "$job_temp_dir" -name "stderr.*" -print -quit 2>/dev/null)
+      if [[ -n "$actual_stderr_file" && -s "$actual_stderr_file" ]]; then
+        log "--- Stderr for $base_file (PID: $pid) ---" "ERROR"
+        log "$(sed 's/^/    /' "$actual_stderr_file")" "ERROR"
+        log "--- End Stderr for $base_file (PID: $pid) ---" "ERROR"
       else
-          log "Stderr file '$stderr_file' not found or empty for failed job (PID: $pid)." "WARN"
+        log "Stderr file for failed job (PID: $pid) not found or empty in $job_temp_dir." "WARN"
       fi
 
       write_tracking_file "$base_file" "FAILED_TO_IMPORT"
@@ -1668,26 +1646,55 @@ for pid in "${import_pids[@]}"; do
       ((completed_jobs++))
     fi
   else
-    log "Process $pid (File: $base_file) already finished before wait." "DEBUG"
     current_status=$(read_tracking_status "$base_file")
-
-    # If it was marked IN_PROGRESS, assume success and update. import_file handles explicit failures.
+    # If it was marked IN_PROGRESS, verify if import actually succeeded by checking for error files or database content
     if [[ "$current_status" == "IN_PROGRESS" ]]; then
-        log "Updating status for already finished process $pid (File: $base_file) from IN_PROGRESS to IMPORTED." "DEBUG"
-        write_tracking_file "$base_file" "IMPORTED"
-        ((completed_jobs++))
+      log "Status for already finished process $pid (File: $base_file) is IN_PROGRESS. Verifying actual outcome." "WARN"
+      job_temp_dir="$SCRIPT_TEMP_DIR/import-jobs/$pid"
+      actual_stderr_file=$(find "$job_temp_dir" -name "stderr.*" -print -quit 2>/dev/null)
+      if [[ -n "$actual_stderr_file" && -s "$actual_stderr_file" ]]; then
+        log "Error detected in stderr for $base_file (PID: $pid). Marking as failed." "ERROR"
+        log "--- Stderr for $base_file (PID: $pid) ---" "ERROR"
+        log "$(sed 's/^/    /' "$actual_stderr_file")" "ERROR"
+        log "--- End Stderr for $base_file (PID: $pid) ---" "ERROR"
+        write_tracking_file "$base_file" "FAILED_TO_IMPORT"
+        ((failed_imports++))
+      else
+        log "No error file found for $base_file (PID: $pid). Checking database state to confirm success." "WARN"
+        table_name=$(get_table_name_from_filename "$base_file")
+        if [[ -z "$table_name" ]]; then
+          log "Could not determine table name for $base_file (PID: $pid). Cannot verify database state." "ERROR"
+          write_tracking_file "$base_file" "FAILED_TO_IMPORT"
+          ((failed_imports++))
+        else
+          row_check=$(psql -v ON_ERROR_STOP=1 -q -Atc "SELECT EXISTS(SELECT 1 FROM $table_name LIMIT 1);" 2>/dev/null)
+          row_check_status=$?
+          if [[ $row_check_status -eq 0 && "$row_check" == "t" ]]; then
+            log "Database table $table_name contains data for $base_file (PID: $pid). Marking as successful." "INFO"
+            write_tracking_file "$base_file" "IMPORTED"
+            ((completed_jobs++))
+          elif [[ $row_check_status -ne 0 ]]; then
+            log "Database query failed for $base_file (PID: $pid) with status $row_check_status. Assuming success to avoid stuck status." "WARN"
+            write_tracking_file "$base_file" "IMPORTED"
+            ((completed_jobs++))
+          else
+            log "Database table $table_name is empty for $base_file (PID: $pid). Marking as failed." "ERROR"
+            write_tracking_file "$base_file" "FAILED_TO_IMPORT"
+            ((failed_imports++))
+          fi
+        fi
+      fi
     elif [[ "$current_status" == "IMPORTED" ]]; then
-         log "Status for already finished process $pid (File: $base_file) is already IMPORTED." "DEBUG"
-         # Avoid double counting completed jobs if reconciling later
-         ((completed_jobs++))
+      # Avoid double counting completed jobs if reconciling later
+      ((completed_jobs++))
     elif [[ "$current_status" == "FAILED_TO_IMPORT" || "$current_status" == "FAILED_VALIDATION" ]]; then
-         log "Status for already finished process $pid (File: $base_file) was already FAILED ($current_status)." "WARN"
-         # Avoid double counting failed jobs
-         ((failed_imports++))
+      log "Status for already finished process $pid (File: $base_file) was already FAILED ($current_status)." "WARN"
+      # Avoid double counting failed jobs
+      ((failed_imports++))
     else
-        log "Status for already finished process $pid (File: $base_file) is '$current_status'. Not updating status, but counting as completed for now." "WARN"
-        # Assume completed for statistical purposes, reconcile later if needed.
-        ((completed_jobs++))
+      log "Status for already finished process $pid (File: $base_file) is '$current_status'. Not updating status, but counting as completed for now." "WARN"
+      # Assume completed for statistical purposes, reconcile later if needed.
+      ((completed_jobs++))
     fi
   fi
 done
@@ -1709,36 +1716,49 @@ else
   log "Monitor PID not found or invalid, cannot wait for it." "WARN"
 fi
 
+enable_pipefail
+
 # Make sure there are no remaining background processes before printing statistics
 wait
 
+disable_pipefail
+
 log "Performing state consistency check..."
 incomplete_count=$(grep -v -E "IMPORTED|FAILED_TO_IMPORT|FAILED_VALIDATION" "$TRACKING_FILE" | wc -l)
+inconsistent_files=0
 if [[ $incomplete_count -gt 0 ]]; then
   overall_success=false
   log "Found $incomplete_count files with incomplete status:" "ERROR"
   grep -v -E "IMPORTED|FAILED_TO_IMPORT|FAILED_VALIDATION" "$TRACKING_FILE"
-
-  # Adjust statistics to account for incomplete files, and prevent negative values
-  completed_jobs=$((completed_jobs - incomplete_count))
-  if [[ $completed_jobs -lt 0 ]]; then
-    log "Correcting completed_jobs value from $completed_jobs to 0 (cannot be negative)" "DEBUG"
-    completed_jobs=0
-  fi
-
   inconsistent_files=$incomplete_count
-else
-  inconsistent_files=0
 fi
 
-tracking_failures=$(grep -c -E "FAILED_VALIDATION|FAILED_TO_IMPORT" "$TRACKING_FILE" || true)
-if [[ $tracking_failures -gt $failed_imports ]]; then
-  log "Found discrepancy in failure count: tracking file shows $tracking_failures failures but counted $failed_imports during processing" "WARN"
-  log "Using higher count ($tracking_failures) for accuracy" "WARN"
-  failed_imports=$tracking_failures
+final_completed=$(grep -c "IMPORTED" "$TRACKING_FILE" || true)
+final_failed=$(grep -c -E "FAILED_VALIDATION|FAILED_TO_IMPORT" "$TRACKING_FILE" || true)
+
+if [[ "$final_completed" -ne "$completed_jobs" ]]; then
+    log "Reconciling completed jobs count: initial=$completed_jobs, final_tracking=$final_completed" "DEBUG"
+    completed_jobs=$final_completed
+fi
+if [[ "$final_failed" -ne "$failed_imports" ]]; then
+    log "Reconciling failed jobs count: initial=$failed_imports, final_tracking=$final_failed" "DEBUG"
+    failed_imports=$final_failed
+    overall_success=false
+fi
+
+# Ensure total processed = completed + failed + inconsistent
+processed_check=$((completed_jobs + failed_imports + inconsistent_files))
+special_file_count=2  # schema.sql.gz and MIRRORNODE_VERSION.gz
+total_jobs_adjusted=$((total_jobs + special_file_count))
+if [[ $processed_check -ne $total_jobs_adjusted ]]; then
+    log "Count mismatch warning: Completed($completed_jobs) + Failed($failed_imports) + Inconsistent($inconsistent_files) = $processed_check != Total($total_jobs_adjusted)" "WARN"
+fi
+
+if [[ "$failed_imports" -gt 0 || "$inconsistent_files" -gt 0 ]]; then
   overall_success=false
 fi
 
+enable_pipefail
 print_final_statistics
 
 # Force cleanup of any remaining background processes for a clean exit
