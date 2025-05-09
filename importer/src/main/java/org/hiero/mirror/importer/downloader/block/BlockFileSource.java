@@ -3,57 +3,48 @@
 package org.hiero.mirror.importer.downloader.block;
 
 import com.google.common.base.Stopwatch;
+import com.hedera.hapi.block.stream.protoc.Block;
 import com.hedera.mirror.common.domain.StreamType;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.inject.Named;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import lombok.CustomLog;
 import org.hiero.mirror.importer.addressbook.ConsensusNode;
 import org.hiero.mirror.importer.addressbook.ConsensusNodeService;
+import org.hiero.mirror.importer.domain.StreamFileData;
 import org.hiero.mirror.importer.domain.StreamFilename;
 import org.hiero.mirror.importer.downloader.CommonDownloaderProperties;
-import org.hiero.mirror.importer.downloader.StreamPoller;
 import org.hiero.mirror.importer.downloader.provider.StreamFileProvider;
-import org.hiero.mirror.importer.leader.Leader;
-import org.hiero.mirror.importer.reader.block.BlockFileReader;
+import org.hiero.mirror.importer.exception.BlockStreamException;
+import org.hiero.mirror.importer.reader.block.BlockStream;
+import org.hiero.mirror.importer.reader.block.BlockStreamReader;
 import org.hiero.mirror.importer.util.Utility;
-import org.springframework.scheduling.annotation.Scheduled;
 
-@CustomLog
 @Named
-final class BlockStreamPoller implements StreamPoller {
+final class BlockFileSource extends AbstractBlockStreamSource {
 
-    private static final long GENESIS_BLOCK_NUMBER = 0;
-
-    private final BlockFileReader blockFileReader;
-    private final BlockStreamVerifier blockStreamVerifier;
-    private final CommonDownloaderProperties commonDownloaderProperties;
     private final ConsensusNodeService consensusNodeService;
-    private final BlockPollerProperties properties;
     private final StreamFileProvider streamFileProvider;
 
+    // metrics
     private final Timer cloudStorageLatencyMetric;
     private final Timer downloadLatencyMetric;
 
-    public BlockStreamPoller(
-            BlockFileReader blockFileReader,
+    BlockFileSource(
+            BlockStreamReader blockStreamReader,
             BlockStreamVerifier blockStreamVerifier,
             CommonDownloaderProperties commonDownloaderProperties,
             ConsensusNodeService consensusNodeService,
-            BlockPollerProperties properties,
-            StreamFileProvider streamFileProvider,
-            MeterRegistry meterRegistry) {
-        this.blockFileReader = blockFileReader;
-        this.blockStreamVerifier = blockStreamVerifier;
-        this.commonDownloaderProperties = commonDownloaderProperties;
+            MeterRegistry meterRegistry,
+            BlockStreamProperties properties,
+            StreamFileProvider streamFileProvider) {
+        super(blockStreamReader, blockStreamVerifier, commonDownloaderProperties, properties);
         this.consensusNodeService = consensusNodeService;
-        this.properties = properties;
         this.streamFileProvider = streamFileProvider;
 
         cloudStorageLatencyMetric = Timer.builder("hiero.mirror.importer.cloud.latency")
@@ -70,13 +61,7 @@ final class BlockStreamPoller implements StreamPoller {
     }
 
     @Override
-    @Leader
-    @Scheduled(fixedDelayString = "#{@blockPollerProperties.getFrequency().toMillis()}")
-    public void poll() {
-        if (!properties.isEnabled()) {
-            return;
-        }
-
+    public void get() {
         long blockNumber = getNextBlockNumber();
         var nodes = getRandomizedNodes();
         var stopwatch = Stopwatch.createStarted();
@@ -96,23 +81,16 @@ final class BlockStreamPoller implements StreamPoller {
                         .orElseThrow();
                 log.debug("Downloaded block file {} from node {}", filename, nodeId);
 
-                var blockFile = blockFileReader.read(blockFileData);
-                blockFile.setNodeId(nodeId);
+                var blockStream = getBlockStream(blockFileData, nodeId);
+                var blockFile = onBlockStream(blockStream);
 
-                byte[] bytes = blockFile.getBytes();
-                if (!properties.isPersistBytes()) {
-                    blockFile.setBytes(null);
-                }
-
-                blockStreamVerifier.verify(blockFile);
-
-                Instant cloudStorageTime = blockFileData.getLastModified();
-                Instant consensusEnd = Instant.ofEpochSecond(0, blockFile.getConsensusEnd());
+                var cloudStorageTime = blockFileData.getLastModified();
+                var consensusEnd = Instant.ofEpochSecond(0, blockFile.getConsensusEnd());
                 cloudStorageLatencyMetric.record(Duration.between(consensusEnd, cloudStorageTime));
                 downloadLatencyMetric.record(Duration.between(consensusEnd, Instant.now()));
 
                 if (properties.isWriteFiles()) {
-                    Utility.archiveFile(blockFileData.getFilePath(), bytes, streamPath);
+                    Utility.archiveFile(blockFileData.getFilePath(), blockStream.bytes(), streamPath);
                 }
 
                 return;
@@ -123,16 +101,20 @@ final class BlockStreamPoller implements StreamPoller {
             timeout = commonDownloaderProperties.getTimeout().minus(stopwatch.elapsed());
         }
 
-        log.warn("Failed to download block file {}", filename);
+        throw new BlockStreamException("Failed to download block file " + filename);
     }
 
-    private long getNextBlockNumber() {
-        return blockStreamVerifier
-                .getLastBlockNumber()
-                .map(v -> v + 1)
-                .or(() -> Optional.ofNullable(
-                        commonDownloaderProperties.getImporterProperties().getStartBlockNumber()))
-                .orElse(GENESIS_BLOCK_NUMBER);
+    private BlockStream getBlockStream(StreamFileData blockFileData, long nodeId) throws IOException {
+        try (var inputStream = blockFileData.getInputStream()) {
+            var block = Block.parseFrom(inputStream);
+            byte[] bytes = blockFileData.getBytes();
+            return new BlockStream(
+                    block.getItemsList(),
+                    bytes,
+                    blockFileData.getFilename(),
+                    blockFileData.getStreamFilename().getTimestamp(),
+                    nodeId);
+        }
     }
 
     private List<ConsensusNode> getRandomizedNodes() {

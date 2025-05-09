@@ -15,10 +15,7 @@ import static com.hedera.hapi.block.stream.protoc.BlockItem.ItemCase.TRANSACTION
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.block.stream.output.protoc.StateChanges;
 import com.hedera.hapi.block.stream.output.protoc.TransactionOutput;
-import com.hedera.hapi.block.stream.output.protoc.TransactionOutput.TransactionCase;
-import com.hedera.hapi.block.stream.protoc.Block;
 import com.hedera.hapi.block.stream.protoc.BlockItem;
-import com.hedera.hapi.block.stream.protoc.BlockItem.ItemCase;
 import com.hedera.mirror.common.domain.DigestAlgorithm;
 import com.hedera.mirror.common.domain.transaction.BlockFile;
 import com.hedera.mirror.common.util.DomainUtils;
@@ -32,69 +29,59 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Objects;
+import lombok.CustomLog;
 import lombok.Setter;
 import lombok.Value;
 import lombok.experimental.NonFinal;
-import org.hiero.mirror.importer.domain.StreamFileData;
 import org.hiero.mirror.importer.exception.InvalidStreamFileException;
 
+@CustomLog
 @Named
-public class ProtoBlockFileReader implements BlockFileReader {
-
-    static final int VERSION = 7;
+public class BlockStreamReaderImpl implements BlockStreamReader {
 
     @Override
-    public BlockFile read(StreamFileData streamFileData) {
-        String filename = streamFileData.getFilename();
+    public BlockFile read(@NotNull BlockStream blockStream) {
+        var context = new ReaderContext(blockStream.blockItems(), blockStream.filename());
+        byte[] bytes = blockStream.bytes();
+        Integer size = bytes != null ? bytes.length : null;
+        var blockFileBuilder = context.getBlockFile()
+                .bytes(bytes)
+                .loadStart(blockStream.loadStart())
+                .name(blockStream.filename())
+                .nodeId(blockStream.nodeId())
+                .size(size)
+                .version(VERSION);
 
-        try (var inputStream = streamFileData.getInputStream()) {
-            var block = Block.parseFrom(inputStream);
-            var context = new ReaderContext(block.getItemsList(), filename);
-            var blockFileBuilder = context.getBlockFile()
-                    .loadStart(streamFileData.getStreamFilename().getTimestamp())
-                    .name(filename)
-                    .version(VERSION);
-
-            var blockItem = context.readBlockItemFor(RECORD_FILE);
-            if (blockItem != null) {
-                return blockFileBuilder
-                        .recordFileItem(blockItem.getRecordFile())
-                        .build();
-            }
-
-            readBlockHeader(context);
-            readRounds(context);
-            readStandaloneStateChanges(context);
-            readBlockProof(context);
-
-            var blockFile = blockFileBuilder.build();
-            var bytes = streamFileData.getBytes();
-            var items = blockFile.getItems();
-            blockFile.setBytes(bytes);
-            blockFile.setCount((long) items.size());
-            blockFile.setHash(context.getBlockRootHashDigest().digest());
-            blockFile.setSize(bytes.length);
-
-            if (!items.isEmpty()) {
-                blockFile.setConsensusStart(items.getFirst().getConsensusTimestamp());
-                blockFile.setConsensusEnd(items.getLast().getConsensusTimestamp());
-            } else {
-                blockFile.setConsensusStart(context.getLastMetaTimestamp());
-                blockFile.setConsensusEnd(context.getLastMetaTimestamp());
-            }
-
-            return blockFile;
-        } catch (InvalidStreamFileException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new InvalidStreamFileException("Failed to read " + filename, e);
+        var blockItem = context.readBlockItemFor(RECORD_FILE);
+        if (blockItem != null) {
+            return blockFileBuilder.recordFileItem(blockItem.getRecordFile()).build();
         }
+
+        readBlockHeader(context);
+        readRounds(context);
+        readStandaloneStateChanges(context);
+        readBlockProof(context);
+
+        var blockFile = blockFileBuilder.build();
+        var items = blockFile.getItems();
+        blockFile.setCount((long) items.size());
+        blockFile.setHash(context.getBlockRootHashDigest().digest());
+
+        if (!items.isEmpty()) {
+            blockFile.setConsensusStart(items.getFirst().getConsensusTimestamp());
+            blockFile.setConsensusEnd(items.getLast().getConsensusTimestamp());
+        } else {
+            blockFile.setConsensusStart(context.getLastMetaTimestamp());
+            blockFile.setConsensusEnd(context.getLastMetaTimestamp());
+        }
+
+        return blockFile;
     }
 
     private void readBlockHeader(ReaderContext context) {
         var blockItem = context.readBlockItemFor(BLOCK_HEADER);
         if (blockItem == null) {
-            throw new InvalidStreamFileException("Missing block header in block file " + context.getFilename());
+            throw new InvalidStreamFileException("Missing block header in block " + context.getFilename());
         }
 
         var blockFileBuilder = context.getBlockFile();
@@ -104,7 +91,7 @@ public class ProtoBlockFileReader implements BlockFileReader {
             blockFileBuilder.digestAlgorithm(DigestAlgorithm.SHA_384);
         } else {
             throw new InvalidStreamFileException(String.format(
-                    "Unsupported hash algorithm %s in block header of block file %s",
+                    "Unsupported hash algorithm %s in block header of block %s",
                     blockHeader.getHashAlgorithm(), context.getFilename()));
         }
 
@@ -115,7 +102,7 @@ public class ProtoBlockFileReader implements BlockFileReader {
     private void readBlockProof(ReaderContext context) {
         var blockItem = context.readBlockItemFor(BLOCK_PROOF);
         if (blockItem == null) {
-            throw new InvalidStreamFileException("Missing block proof in file " + context.getFilename());
+            throw new InvalidStreamFileException("Missing block proof in block " + context.getFilename());
         }
 
         var blockFile = context.getBlockFile();
@@ -141,10 +128,11 @@ public class ProtoBlockFileReader implements BlockFileReader {
                 var transactionResultProtoBlockItem = context.readBlockItemFor(TRANSACTION_RESULT);
                 if (transactionResultProtoBlockItem == null) {
                     throw new InvalidStreamFileException(
-                            "Missing transaction result in block file " + context.getFilename());
+                            "Missing transaction result in block " + context.getFilename());
                 }
 
-                var transactionOutputs = new EnumMap<TransactionCase, TransactionOutput>(TransactionCase.class);
+                var transactionOutputs = new EnumMap<TransactionOutput.TransactionCase, TransactionOutput>(
+                        TransactionOutput.TransactionCase.class);
                 while ((protoBlockItem = context.readBlockItemFor(TRANSACTION_OUTPUT)) != null) {
                     var transactionOutput = protoBlockItem.getTransactionOutput();
                     transactionOutputs.put(transactionOutput.getTransactionCase(), transactionOutput);
@@ -176,7 +164,7 @@ public class ProtoBlockFileReader implements BlockFileReader {
             }
         } catch (InvalidProtocolBufferException e) {
             throw new InvalidStreamFileException(
-                    "Failed to deserialize Transaction from block file " + context.getFilename(), e);
+                    "Failed to deserialize Transaction from block " + context.getFilename(), e);
         }
     }
 
@@ -255,7 +243,7 @@ public class ProtoBlockFileReader implements BlockFileReader {
                 var innerTransaction = Transaction.parseFrom(batchBody.getTransactions(batchIndex++));
                 if (innerTransaction == null || Transaction.getDefaultInstance().equals(innerTransaction)) {
                     throw new InvalidStreamFileException(
-                            "Failed to parse inner transaction from atomic batch in block file " + filename);
+                            "Failed to parse inner transaction from atomic batch in block " + filename);
                 }
                 return innerTransaction;
             }
@@ -269,7 +257,7 @@ public class ProtoBlockFileReader implements BlockFileReader {
          * @param itemCase - block item case
          * @return The matching block item, or null
          */
-        public BlockItem readBlockItemFor(ItemCase itemCase) {
+        public BlockItem readBlockItemFor(BlockItem.ItemCase itemCase) {
             if (index >= blockItems.size()) {
                 return null;
             }

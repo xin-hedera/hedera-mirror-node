@@ -10,12 +10,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
-@Component("blockPollerProperties")
-@ConfigurationProperties("hiero.mirror.importer.downloader.block")
+@Component("blockStreamProperties")
+@ConfigurationProperties("hiero.mirror.importer.block")
 @Data
 @RequiredArgsConstructor
 @Validated
-public class BlockPollerProperties {
+public class BlockStreamProperties {
 
     private boolean enabled = false;
 
