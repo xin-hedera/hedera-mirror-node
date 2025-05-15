@@ -10,11 +10,15 @@ import {FLYWAY_DATA_PATH, FLYWAY_EXE_PATH, FLYWAY_VERSION} from './globalSetup';
 import {getModuleDirname, isV2Schema} from './testutils';
 import {getPoolClass} from '../utils';
 import {PostgreSqlContainer} from '@testcontainers/postgresql';
+import {GenericContainer, Network, PullPolicy} from 'testcontainers';
 
 const {db: defaultDbConfig} = config;
 const Pool = getPoolClass();
 
 const containers = new Map();
+const restJavaContainers = new Map();
+const networks = new Map();
+
 const dbName = 'mirror_node';
 const ownerUser = 'mirror_node';
 const ownerPassword = 'mirror_node_pass';
@@ -59,12 +63,16 @@ const createDbContainer = async () => {
 
   while (retries-- > 0) {
     try {
-      container = await new PostgreSqlContainer(image)
+      container = new PostgreSqlContainer(image)
         .withCopyFilesToContainer([initSqlCopy])
         .withDatabase(dbName)
         .withPassword(ownerPassword)
-        .withUsername(ownerUser)
-        .start();
+        .withUsername(ownerUser);
+      const network = await getNetwork();
+      if (network) {
+        container = container.withNetwork(network).withNetworkAliases(`postgres-${workerId}`);
+      }
+      container = await container.start();
       break;
     } catch (e) {
       logger.warn(`Error start PostgreSQL container worker ${workerId} during attempt #${maxRetries - retries}: ${e}`);
@@ -77,6 +85,36 @@ const createDbContainer = async () => {
   return container;
 };
 
+const createRestJavaContainer = async () => {
+  const psqlContainer = await getDbContainer();
+  const network = await getNetwork();
+  if (!network) {
+    throw new Error('Network not found');
+  }
+  return new GenericContainer('gcr.io/mirrornode/hedera-mirror-rest-java:latest')
+    .withEnvironment({
+      HEDERA_MIRROR_RESTJAVA_DB_HOST: `postgres-${workerId}`,
+      HEDERA_MIRROR_RESTJAVA_DB_PORT: 5432,
+      HEDERA_MIRROR_RESTJAVA_DB_NAME: dbName,
+    })
+    .withExposedPorts(8084)
+    .withNetwork(network)
+    .withPullPolicy(PullPolicy.defaultPolicy())
+    .start();
+};
+
+const getNetwork = async () => {
+  if (!process.env.REST_JAVA_INCLUDE) {
+    return null;
+  }
+
+  let network = networks.get(workerId);
+  if (!network) {
+    network = await new Network().start();
+    networks.set(workerId, network);
+  }
+  return network;
+};
 /**
  * Gets the port of the container in use by the Jest worker. If the container does not exist, a new container is created
  *
@@ -93,8 +131,24 @@ const getDbContainer = async () => {
   return container;
 };
 
-const createPool = async () => {
-  const container = await getDbContainer();
+const initializeContainers = async () => {
+  const dbContainer = await getDbContainer();
+  await createPool(dbContainer);
+};
+
+const startRestJavaContainer = async (envSetup) => {
+  let container = restJavaContainers.get(workerId);
+  if (!container) {
+    container = await createRestJavaContainer();
+    restJavaContainers.set(workerId, container);
+  }
+
+  global.REST_JAVA_BASE_URL = `http://${container.getHost()}:${container.getMappedPort(8084)}`;
+
+  return container;
+};
+
+const createPool = async (container) => {
   const dbConnectionParams = {
     database: container.getDatabase(),
     host: container.getHost(),
@@ -189,5 +243,6 @@ const getMigrationScriptLocation = (locations) => {
 
 export default {
   cleanUp,
-  createPool,
+  initializeContainers,
+  startRestJavaContainer,
 };
