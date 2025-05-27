@@ -87,6 +87,11 @@ final class ThrottleManagerImplTest {
     }
 
     @Test
+    void restoreZero() {
+        throttleManager.restore(0);
+    }
+
+    @Test
     void restoreMax() {
         long gps = 10_000_000_000_000L;
         throttleProperties.setGasPerSecond(gps);
