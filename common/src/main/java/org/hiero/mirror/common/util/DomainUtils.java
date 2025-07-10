@@ -286,6 +286,41 @@ public class DomainUtils {
         return null;
     }
 
+    public static EntityId fromTrimmedEvmAddress(final byte[] evmAddress) {
+        if (evmAddress == null || evmAddress.length > EVM_ADDRESS_LENGTH) {
+            return null;
+        } else if (evmAddress.length == EVM_ADDRESS_LENGTH) {
+            return fromEvmAddress(evmAddress);
+        }
+
+        var padding = new byte[EVM_ADDRESS_LENGTH - evmAddress.length];
+
+        return fromEvmAddress(Bytes.concat(padding, evmAddress));
+    }
+
+    public static byte[] trim(final byte[] data) {
+        if (ArrayUtils.isEmpty(data)) {
+            return data;
+        }
+
+        int i = 0;
+        for (; i < data.length; i++) {
+            if (data[i] != 0) {
+                break;
+            }
+        }
+
+        if (i == 0) {
+            return data;
+        }
+
+        if (i == data.length) {
+            return ArrayUtils.EMPTY_BYTE_ARRAY;
+        }
+
+        return ArrayUtils.subarray(data, i, data.length);
+    }
+
     public static byte[] toEvmAddress(ContractID contractId) {
         if (contractId == null || contractId == ContractID.getDefaultInstance()) {
             throw new InvalidEntityException("Invalid ContractID");
