@@ -105,7 +105,7 @@ public class EstimateFeature extends AbstractEstimateFeature {
     @Given("I successfully create EstimateGas contract from contract bytes")
     public void createNewEstimateContract() {
         deployedContract = getContract(ESTIMATE_GAS);
-        contractSolidityAddress = asHexAddress(deployedContract.contractId());
+        contractSolidityAddress = deployedContract.contractId().toEvmAddress();
         newAccountEvmAddress =
                 PrivateKey.generateECDSA().getPublicKey().toEvmAddress().toString();
         receiverAccountId = accountClient.getAccount(AccountClient.AccountNameEnum.BOB);
@@ -126,13 +126,13 @@ public class EstimateFeature extends AbstractEstimateFeature {
     @Given("I successfully create Precompile contract from contract bytes")
     public void createNewPrecompileContract() {
         deployedPrecompileContract = getContract(PRECOMPILE);
-        precompileSolidityAddress = asHexAddress(deployedPrecompileContract.contractId());
+        precompileSolidityAddress = deployedPrecompileContract.contractId().toEvmAddress();
     }
 
     @Given("I successfully create ERC contract from contract bytes")
     public void createNewERCContract() {
         deployedERCContract = getContract(ERC);
-        ercSolidityAddress = asAddress(deployedERCContract.contractId()).toString();
+        ercSolidityAddress = deployedERCContract.contractId().toEvmAddress();
     }
 
     @Then("the mirror node REST API should return status {int} for the estimate contract creation")
