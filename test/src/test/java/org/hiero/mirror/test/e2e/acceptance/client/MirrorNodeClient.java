@@ -6,6 +6,7 @@ import static org.awaitility.Awaitility.await;
 import static org.hiero.mirror.test.e2e.acceptance.config.RestProperties.URL_PREFIX;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Suppliers;
 import com.hedera.hashgraph.sdk.AccountId;
 import com.hedera.hashgraph.sdk.SubscriptionHandle;
 import com.hedera.hashgraph.sdk.TokenId;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import lombok.CustomLog;
 import lombok.NonNull;
 import org.apache.commons.lang3.StringUtils;
@@ -34,9 +36,11 @@ import org.hiero.mirror.rest.model.ContractResult;
 import org.hiero.mirror.rest.model.ContractResultsResponse;
 import org.hiero.mirror.rest.model.CryptoAllowancesResponse;
 import org.hiero.mirror.rest.model.NetworkExchangeRateSetResponse;
+import org.hiero.mirror.rest.model.NetworkFeesResponse;
 import org.hiero.mirror.rest.model.NetworkNode;
 import org.hiero.mirror.rest.model.NetworkNodesResponse;
 import org.hiero.mirror.rest.model.NetworkStakeResponse;
+import org.hiero.mirror.rest.model.NetworkSupplyResponse;
 import org.hiero.mirror.rest.model.Nft;
 import org.hiero.mirror.rest.model.NftAllowancesResponse;
 import org.hiero.mirror.rest.model.NftTransactionHistory;
@@ -61,6 +65,7 @@ import org.hiero.mirror.test.e2e.acceptance.util.TestUtil;
 import org.springframework.retry.RetryContext;
 import org.springframework.retry.policy.MaxAttemptsRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestClient;
 
 @CustomLog
@@ -73,6 +78,7 @@ public class MirrorNodeClient {
     private final RetryTemplate retryTemplate;
     private final RestClient web3Client;
     private final Web3Properties web3Properties;
+    private final Supplier<Boolean> partialStateSupplier = Suppliers.memoize(this::computeHasPartialState);
 
     public MirrorNodeClient(
             AcceptanceTestProperties acceptanceTestProperties,
@@ -296,6 +302,16 @@ public class MirrorNodeClient {
         return callRestEndpoint(stakeEndpoint, NetworkStakeResponse.class);
     }
 
+    public NetworkFeesResponse getNetworkFees() {
+        String feesEndpoint = "/network/fees";
+        return callRestEndpoint(feesEndpoint, NetworkFeesResponse.class);
+    }
+
+    public NetworkSupplyResponse getNetworkSupply() {
+        String supplyEndpoint = "/network/supply";
+        return callRestEndpoint(supplyEndpoint, NetworkSupplyResponse.class);
+    }
+
     public Nft getNftInfo(String tokenId, long serialNumber) {
         log.debug("Verify serial number '{}' for token '{}' is returned by Mirror Node", serialNumber, tokenId);
         return callRestEndpoint("/tokens/{tokenId}/nfts/{serialNumber}", Nft.class, tokenId, serialNumber);
@@ -400,6 +416,10 @@ public class MirrorNodeClient {
                 "/accounts/{accountId}/airdrops/outstanding", TokenAirdropsResponse.class, accountId.toString());
     }
 
+    public boolean hasPartialState() {
+        return partialStateSupplier.get();
+    }
+
     private <T> T callRestEndpoint(String uri, Class<T> classType, Object... uriVariables) {
         String normalizedUri = normalizeUri(uri);
         return retryTemplate.execute(x ->
@@ -430,5 +450,19 @@ public class MirrorNodeClient {
         }
 
         return uri.substring(URL_PREFIX.length());
+    }
+
+    private boolean computeHasPartialState() {
+        final var resp = getBlocks(Order.ASC, 1);
+        if (CollectionUtils.isEmpty(resp.getBlocks())) {
+            // No blocks = partial state
+            return true;
+        }
+
+        final var first = resp.getBlocks().getFirst();
+        final var number = first.getNumber();
+
+        // If the first block doesn't start at 0 => partial state
+        return number == null || number > 0;
     }
 }
