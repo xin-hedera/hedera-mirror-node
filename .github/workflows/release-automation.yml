@@ -132,7 +132,7 @@ jobs:
           tagging_message: ${{ env.RELEASE_TAG }}
 
       - name: Create Github Release
-        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # v1.16.0
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20.0
         with:
           bodyFile: ${{ env.RELEASE_NOTES_FILENAME }}.md
           commit: ${{ env.RELEASE_BRANCH }}
