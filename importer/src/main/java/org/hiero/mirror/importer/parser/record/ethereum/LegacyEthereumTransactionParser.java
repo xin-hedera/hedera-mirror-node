@@ -9,7 +9,7 @@ import jakarta.inject.Named;
 import java.math.BigInteger;
 import org.hiero.mirror.common.domain.transaction.EthereumTransaction;
 import org.hiero.mirror.importer.exception.InvalidEthereumBytesException;
-import org.hiero.mirror.importer.repository.FileDataRepository;
+import org.hiero.mirror.importer.service.ContractBytecodeService;
 
 @Named
 public class LegacyEthereumTransactionParser extends AbstractEthereumTransactionParser {
@@ -18,8 +18,8 @@ public class LegacyEthereumTransactionParser extends AbstractEthereumTransaction
     private static final int LEGACY_TYPE_RLP_ITEM_COUNT = 9;
     private static final String TRANSACTION_TYPE_NAME = "Legacy";
 
-    public LegacyEthereumTransactionParser(FileDataRepository fileDataRepository) {
-        super(fileDataRepository);
+    public LegacyEthereumTransactionParser(ContractBytecodeService contractBytecodeService) {
+        super(contractBytecodeService);
     }
 
     @Override
