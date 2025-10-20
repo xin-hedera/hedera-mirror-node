@@ -121,7 +121,8 @@ final class EthereumTransactionHandler extends AbstractTransactionHandler {
                         ethereumTransaction.getCallData(),
                         ethereumTransaction.getCallDataId(),
                         ethereumTransaction.getConsensusTimestamp(),
-                        ethereumTransaction.getData());
+                        ethereumTransaction.getData(),
+                        true);
                 ethereumTransaction.setHash(hash);
             }
 
