@@ -21,6 +21,10 @@ import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
+import com.hedera.hapi.node.hooks.legacy.EvmHookSpec;
+import com.hedera.hapi.node.hooks.legacy.HookCreationDetails;
+import com.hedera.hapi.node.hooks.legacy.HookExtensionPoint;
+import com.hedera.hapi.node.hooks.legacy.LambdaEvmHook;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hedera.services.stream.proto.ContractActionType;
@@ -529,8 +533,19 @@ public class RecordItemBuilder {
                 .setRealmID(REALM_ID)
                 .setReceiverSigRequired(false)
                 .setShardID(SHARD_ID)
+                .addHookCreationDetails(hookCreationDetails())
                 .setStakedNodeId(1L);
         return new Builder<>(TransactionType.CRYPTOCREATEACCOUNT, builder).receipt(r -> r.setAccountID(accountId()));
+    }
+
+    private HookCreationDetails.Builder hookCreationDetails() {
+        return HookCreationDetails.newBuilder()
+                .setExtensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                .setHookId(1L)
+                .setLambdaEvmHook(LambdaEvmHook.newBuilder()
+                        .setSpec(EvmHookSpec.newBuilder().setContractId(contractId()))
+                        .build())
+                .setAdminKey(key());
     }
 
     public Builder<CryptoDeleteTransactionBody.Builder> cryptoDelete() {
@@ -632,7 +647,9 @@ public class RecordItemBuilder {
                 .setKey(key())
                 .setProxyAccountID(accountId())
                 .setReceiverSigRequired(false)
-                .setStakedNodeId(1L);
+                .setStakedNodeId(1L)
+                .addHookCreationDetails(hookCreationDetails())
+                .addHookIdsToDelete(1L);
         return new Builder<>(TransactionType.CRYPTOUPDATEACCOUNT, builder);
     }
 
