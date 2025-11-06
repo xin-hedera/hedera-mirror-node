@@ -13,10 +13,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import org.hiero.mirror.common.util.DomainUtils;
 import org.springframework.data.domain.Persistable;
 
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder(toBuilder = true)
 @Data
 @Entity
 @IdClass(HookStorageChange.Id.class)
@@ -25,6 +25,8 @@ public class HookStorageChange implements Persistable<HookStorageChange.Id> {
 
     @jakarta.persistence.Id
     private long consensusTimestamp;
+
+    private boolean deleted;
 
     @jakarta.persistence.Id
     private long hookId;
@@ -42,6 +44,18 @@ public class HookStorageChange implements Persistable<HookStorageChange.Id> {
     @ToString.Exclude
     private byte[] valueWritten;
 
+    @Builder(toBuilder = true)
+    private HookStorageChange(
+            long consensusTimestamp, long hookId, byte[] key, long ownerId, byte[] valueRead, byte[] valueWritten) {
+        this.consensusTimestamp = consensusTimestamp;
+        this.hookId = hookId;
+        this.key = key;
+        this.ownerId = ownerId;
+        this.valueRead = DomainUtils.trim(valueRead);
+        this.valueWritten = DomainUtils.trim(valueWritten);
+        this.deleted = this.valueWritten != null && this.valueWritten.length == 0;
+    }
+
     @Override
     @JsonIgnore
     public Id getId() {
@@ -51,6 +65,15 @@ public class HookStorageChange implements Persistable<HookStorageChange.Id> {
         id.setKey(key);
         id.setOwnerId(ownerId);
         return id;
+    }
+
+    public void setValueRead(byte[] valueRead) {
+        this.valueRead = DomainUtils.trim(valueRead);
+    }
+
+    public void setValueWritten(byte[] valueWritten) {
+        this.valueWritten = DomainUtils.trim(valueWritten);
+        this.deleted = this.valueWritten != null && this.valueWritten.length == 0;
     }
 
     @JsonIgnore

@@ -7,30 +7,39 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.IdClass;
 import java.io.Serial;
 import java.io.Serializable;
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import org.apache.commons.lang3.ArrayUtils;
+import org.hiero.mirror.common.domain.UpsertColumn;
 import org.hiero.mirror.common.domain.Upsertable;
 import org.hiero.mirror.common.util.DomainUtils;
 
 @Data
 @Entity
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder(toBuilder = true)
 @IdClass(HookStorage.Id.class)
 @NoArgsConstructor
 @Upsertable
 public class HookStorage {
+    private static final String CREATED_TS_COALESCE =
+            """
+                    case when coalesce(e_deleted, true) then abs(created_timestamp)
+                         when created_timestamp < 0 then abs(created_timestamp)
+                         else e_created_timestamp
+                    end
+                    """;
 
     private static final int KEY_BYTE_LENGTH = 32;
 
+    @UpsertColumn(coalesce = CREATED_TS_COALESCE)
     private long createdTimestamp;
 
     @jakarta.persistence.Id
     private long hookId;
+
+    private boolean deleted;
 
     @jakarta.persistence.Id
     @ToString.Exclude
@@ -44,6 +53,18 @@ public class HookStorage {
     @ToString.Exclude
     private byte[] value;
 
+    @Builder(toBuilder = true)
+    private HookStorage(
+            long createdTimestamp, long hookId, byte[] key, long modifiedTimestamp, long ownerId, byte[] value) {
+        this.createdTimestamp = createdTimestamp;
+        this.hookId = hookId;
+        this.key = DomainUtils.leftPadBytes(key, KEY_BYTE_LENGTH);
+        this.modifiedTimestamp = modifiedTimestamp;
+        this.ownerId = ownerId;
+        this.value = DomainUtils.trim(value);
+        this.deleted = ArrayUtils.isEmpty(this.value);
+    }
+
     @JsonIgnore
     public HookStorage.Id getId() {
         HookStorage.Id id = new HookStorage.Id();
@@ -55,6 +76,11 @@ public class HookStorage {
 
     public void setKey(byte[] key) {
         this.key = DomainUtils.leftPadBytes(key, KEY_BYTE_LENGTH);
+    }
+
+    public void setValue(byte[] value) {
+        this.value = DomainUtils.trim(value);
+        this.deleted = ArrayUtils.isEmpty(this.value);
     }
 
     @Data
