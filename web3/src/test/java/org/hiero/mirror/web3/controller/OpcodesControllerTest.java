@@ -61,7 +61,6 @@ import org.hiero.mirror.web3.evm.contracts.execution.OpcodesProcessingResult;
 import org.hiero.mirror.web3.evm.contracts.execution.traceability.Opcode;
 import org.hiero.mirror.web3.evm.contracts.execution.traceability.OpcodeTracerOptions;
 import org.hiero.mirror.web3.evm.properties.MirrorNodeEvmProperties;
-import org.hiero.mirror.web3.evm.store.accessor.EntityDatabaseAccessor;
 import org.hiero.mirror.web3.exception.MirrorEvmTransactionException;
 import org.hiero.mirror.web3.repository.ContractResultRepository;
 import org.hiero.mirror.web3.repository.ContractTransactionHashRepository;
@@ -74,6 +73,7 @@ import org.hiero.mirror.web3.service.OpcodeServiceImpl;
 import org.hiero.mirror.web3.service.RecordFileService;
 import org.hiero.mirror.web3.service.RecordFileServiceImpl;
 import org.hiero.mirror.web3.service.model.ContractDebugParameters;
+import org.hiero.mirror.web3.state.CommonEntityAccessor;
 import org.hiero.mirror.web3.utils.TransactionProviderEnum;
 import org.hiero.mirror.web3.viewmodel.BlockType;
 import org.hiero.mirror.web3.viewmodel.GenericErrorResponse;
@@ -141,7 +141,7 @@ class OpcodesControllerTest {
     private RecordFileRepository recordFileRepository;
 
     @MockitoBean
-    private EntityDatabaseAccessor entityDatabaseAccessor;
+    private CommonEntityAccessor commonEntityAccessor;
 
     @MockitoBean
     private Web3Properties web3Properties;
@@ -263,13 +263,15 @@ class OpcodesControllerTest {
         }
 
         when(rateLimitBucket.tryConsume(anyLong())).thenReturn(true);
+
         when(contractDebugService.processOpcodeCall(
                         callServiceParametersCaptor.capture(), tracerOptionsCaptor.capture()))
-                .thenAnswer(context -> {
-                    final ContractDebugParameters params = context.getArgument(0);
-                    final OpcodeTracerOptions options = context.getArgument(1);
-                    opcodesResultCaptor.set(Builder.successfulOpcodesProcessingResult(params, options));
-                    return opcodesResultCaptor.get();
+                .thenAnswer(invocation -> {
+                    final ContractDebugParameters params = invocation.getArgument(0);
+                    final OpcodeTracerOptions options = invocation.getArgument(1);
+                    final var result = Builder.successfulOpcodesProcessingResult(params, options);
+                    opcodesResultCaptor.set(result);
+                    return result;
                 });
     }
 
@@ -326,13 +328,12 @@ class OpcodesControllerTest {
                 .thenReturn(Optional.ofNullable(ethTransaction));
         when(contractResultRepository.findById(consensusTimestamp)).thenReturn(Optional.of(contractResult));
         when(recordFileRepository.findByTimestamp(consensusTimestamp)).thenReturn(Optional.of(recordFile));
-        when(entityDatabaseAccessor.evmAddressFromId(contractId, Optional.empty()))
+        when(commonEntityAccessor.evmAddressFromId(contractId, Optional.empty()))
                 .thenReturn(contractAddress);
-        when(entityDatabaseAccessor.evmAddressFromId(senderId, Optional.empty()))
-                .thenReturn(senderAddress);
-        when(entityDatabaseAccessor.get(contractAddress, Optional.empty()))
+        when(commonEntityAccessor.evmAddressFromId(senderId, Optional.empty())).thenReturn(senderAddress);
+        when(commonEntityAccessor.get(contractAddress, Optional.empty()))
                 .thenReturn(Optional.ofNullable(contractEntity));
-        when(entityDatabaseAccessor.get(senderAddress, Optional.empty())).thenReturn(Optional.of(senderEntity));
+        when(commonEntityAccessor.get(senderAddress, Optional.empty())).thenReturn(Optional.of(senderEntity));
 
         if (ethTransaction != null) {
             return new TransactionHashParameter(Bytes.of(hash));
@@ -378,7 +379,7 @@ class OpcodesControllerTest {
 
         mockMvc.perform(opcodesRequest(transactionIdOrHash))
                 .andExpect(status().isOk())
-                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
         expectedCallServiceParameters.set(expectedCallServiceParameters.get().toBuilder()
                 .isModularized(mirrorNodeEvmProperties.isModularizedServices())
@@ -397,7 +398,7 @@ class OpcodesControllerTest {
 
         mockMvc.perform(opcodesRequest(transactionIdOrHash, options))
                 .andExpect(status().isOk())
-                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
         assertThat(tracerOptionsCaptor.getValue()).isEqualTo(options);
         assertThat(callServiceParametersCaptor.getValue())
@@ -473,8 +474,7 @@ class OpcodesControllerTest {
 
             mockMvc.perform(opcodesRequest(transactionIdOrHash))
                     .andExpect(status().isOk())
-                    .andExpect(
-                            responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                    .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
             assertThat(callServiceParametersCaptor.getValue()).isEqualTo(expectedCallServiceParameters.get());
         } finally {
@@ -496,7 +496,7 @@ class OpcodesControllerTest {
 
         mockMvc.perform(opcodesRequest(transactionIdOrHash))
                 .andExpect(status().isOk())
-                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
         assertThat(callServiceParametersCaptor.getValue()).isEqualTo(expectedCallServiceParameters.get());
     }
@@ -537,8 +537,7 @@ class OpcodesControllerTest {
         for (var i = 0; i < 3; i++) {
             mockMvc.perform(opcodesRequest(transactionIdOrHash))
                     .andExpect(status().isOk())
-                    .andExpect(
-                            responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                    .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
             assertThat(callServiceParametersCaptor.getValue()).isEqualTo(expectedCallServiceParameters.get());
         }
@@ -590,7 +589,7 @@ class OpcodesControllerTest {
 
         mockMvc.perform(opcodesRequest(transactionIdOrHash).header("Is-Modularized", "true"))
                 .andExpect(status().isOk())
-                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
         final var paramsCaptor = ArgumentCaptor.forClass(ContractDebugParameters.class);
         verify(contractDebugService).processOpcodeCall(paramsCaptor.capture(), tracerOptionsCaptor.capture());
@@ -610,7 +609,7 @@ class OpcodesControllerTest {
 
         mockMvc.perform(opcodesRequest(transactionIdOrHash).header("Is-Modularized", "true"))
                 .andExpect(status().isOk())
-                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
         final var paramsCaptor = ArgumentCaptor.forClass(ContractDebugParameters.class);
         verify(contractDebugService).processOpcodeCall(paramsCaptor.capture(), tracerOptionsCaptor.capture());
@@ -630,7 +629,7 @@ class OpcodesControllerTest {
 
         mockMvc.perform(opcodesRequest(transactionIdOrHash).header("Is-Modularized", "false"))
                 .andExpect(status().isOk())
-                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), entityDatabaseAccessor)));
+                .andExpect(responseBody(Builder.opcodesResponse(opcodesResultCaptor.get(), commonEntityAccessor)));
 
         final var paramsCaptor = ArgumentCaptor.forClass(ContractDebugParameters.class);
         verify(contractDebugService).processOpcodeCall(paramsCaptor.capture(), tracerOptionsCaptor.capture());
@@ -650,17 +649,17 @@ class OpcodesControllerTest {
         }
 
         private static OpcodesResponse opcodesResponse(
-                final OpcodesProcessingResult result, final EntityDatabaseAccessor entityDatabaseAccessor) {
+                final OpcodesProcessingResult result, final CommonEntityAccessor commonEntityAccessor) {
             return new OpcodesResponse()
                     .address(result.transactionProcessingResult()
                             .getRecipient()
-                            .flatMap(address -> entityDatabaseAccessor.get(address, Optional.empty()))
+                            .flatMap(address -> commonEntityAccessor.get(address, Optional.empty()))
                             .map(TransactionProviderEnum::entityAddress)
                             .map(Address::toHexString)
                             .orElse(Address.ZERO.toHexString()))
                     .contractId(result.transactionProcessingResult()
                             .getRecipient()
-                            .flatMap(address -> entityDatabaseAccessor.get(address, Optional.empty()))
+                            .flatMap(address -> commonEntityAccessor.get(address, Optional.empty()))
                             .map(Entity::toEntityId)
                             .map(EntityId::toString)
                             .orElse(null))
@@ -836,7 +835,7 @@ class OpcodesControllerTest {
                 final EthereumTransactionRepository ethereumTransactionRepository,
                 final TransactionRepository transactionRepository,
                 final ContractResultRepository contractResultRepository,
-                final EntityDatabaseAccessor entityDatabaseAccessor) {
+                final CommonEntityAccessor commonEntityAccessor) {
             return new OpcodeServiceImpl(
                     recordFileService,
                     contractDebugService,
@@ -844,7 +843,7 @@ class OpcodesControllerTest {
                     ethereumTransactionRepository,
                     transactionRepository,
                     contractResultRepository,
-                    entityDatabaseAccessor);
+                    commonEntityAccessor);
         }
     }
 }
