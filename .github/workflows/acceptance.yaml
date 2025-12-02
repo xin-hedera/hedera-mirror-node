@@ -30,7 +30,6 @@ defaults:
 
 jobs:
   acceptance:
-    runs-on: hiero-mirror-node-linux-large
     strategy:
       fail-fast: false
       matrix:
@@ -95,6 +94,7 @@ jobs:
           [[ "$TAG" != *SNAPSHOT ]] && BASE="v$TAG" || BASE=""
 
           git describe --exact-match HEAD 2>/dev/null | grep "$TAG" && TRIGGERED_BY_TAG=true || TRIGGERED_BY_TAG=false
+          ls -l .git/refs/tags
 
           echo "BASE=${BASE}" >> $GITHUB_ENV
           echo "TAG=${TAG}" >> $GITHUB_ENV
@@ -132,7 +132,7 @@ jobs:
             - 'web3/**'
 
       - name: Build images
-        if: env.TRIGGERED_BY_TAG != 'true' && steps.changeset.outputs != ''
+        if: env.TRIGGERED_BY_TAG != 'true' && steps.changeset.outputs.changes != '[]'
         run: |
           set -ex
           echo '${{ steps.changeset.outputs.changes }}' | jq -r '.[]' | while read module; do
