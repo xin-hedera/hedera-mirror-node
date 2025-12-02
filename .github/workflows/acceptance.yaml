@@ -93,10 +93,11 @@ jobs:
 
           TAG=$(sed -nE 's/^version: (.+)$/\1/p' charts/hedera-mirror/Chart.yaml)
           BASE=""
+          TRIGGERED_BY_TAG=false
           if [[ "$TAG" != *SNAPSHOT ]]; then
             BASE="v$TAG"
             DEREFERENCED_TAG="v${TAG}^{}"
-            git ls-remote --tags origin "${DEREFERENCED_TAG}" | grep $(git rev-parse HEAD) && TRIGGERED_BY_TAG=true || TRIGGERED_BY_TAG=false
+            git ls-remote --tags origin "${DEREFERENCED_TAG}" | grep $(git rev-parse HEAD) && TRIGGERED_BY_TAG=true || true
           fi
 
           echo "BASE=${BASE}" >> $GITHUB_ENV
