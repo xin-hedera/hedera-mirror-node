@@ -92,10 +92,12 @@ jobs:
           set -ex
 
           TAG=$(sed -nE 's/^version: (.+)$/\1/p' charts/hedera-mirror/Chart.yaml)
-          [[ "$TAG" != *SNAPSHOT ]] && BASE="v$TAG" || BASE=""
-
-          git describe --exact-match HEAD 2>/dev/null | grep "$TAG" && TRIGGERED_BY_TAG=true || TRIGGERED_BY_TAG=false
-          ls -l .git/refs/tags
+          BASE=""
+          if [[ "$TAG" != *SNAPSHOT ]]; then
+            BASE="v$TAG"
+            DEREFERENCED_TAG="v${TAG}^{}"
+            git ls-remote --tags origin "${DEREFERENCED_TAG}" | grep $(git rev-parse HEAD) && TRIGGERED_BY_TAG=true || TRIGGERED_BY_TAG=false
+          fi
 
           echo "BASE=${BASE}" >> $GITHUB_ENV
           echo "TAG=${TAG}" >> $GITHUB_ENV
@@ -113,7 +115,7 @@ jobs:
       - name: Find changed modules
         id: changeset
         if: env.TRIGGERED_BY_TAG != 'true'
-        uses: step-security/paths-filter@6eee183b0d2fd101d3f8ee2935c127bca14c5625 # v3.0.5
+        uses: dorny/paths-filter@v3
         with:
           base: ${{ env.BASE }}
           filters: |
