@@ -372,7 +372,7 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
     @ValueSource(booleans = {true, false})
     void transferFunds(boolean longZeroAddressAllowed) {
         // Given
-        final var sender = accountEntityWithEvmAddressPersist();
+        final var sender = accountEntityWithEvmAddressAndSufficientBalancePersist();
         final var receiver = accountEntityWithEvmAddressPersist();
         final var senderAddress = getAliasAddressFromEntity(sender);
 
@@ -663,9 +663,9 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void transferExceedsBalance(boolean overridePayerBalance) {
+    void transferExceedsBalance(boolean validatePayerBalance) {
         // Given
-        mirrorNodeEvmProperties.setOverridePayerBalanceValidation(overridePayerBalance);
+        mirrorNodeEvmProperties.setValidatePayerBalance(validatePayerBalance);
         final var receiver = accountEntityWithEvmAddressPersist();
         final var receiverAddress = getAliasAddressFromEntity(receiver);
         final var senderEntity = accountEntityWithEvmAddressPersist();
@@ -674,31 +674,30 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
         final var serviceParameters = getContractExecutionParametersWithValue(
                 BlockType.LATEST, Bytes.EMPTY, senderAddress, receiverAddress, value);
         // Then
-        if (mirrorNodeEvmProperties.isModularizedServices()) {
-            if (mirrorNodeEvmProperties.isOverridePayerBalanceValidation()) {
-                assertThat(contractExecutionService.processCall(serviceParameters))
-                        .isEqualTo(HEX_PREFIX);
-            } else {
+        if (validatePayerBalance) {
+            if (mirrorNodeEvmProperties.isModularizedServices()) {
                 assertThatThrownBy(() -> contractExecutionService.processCall(serviceParameters))
                         .isInstanceOf(MirrorEvmTransactionException.class)
                         .hasMessage(INSUFFICIENT_PAYER_BALANCE.name());
+            } else {
+                assertThatThrownBy(() -> contractExecutionService.processCall(serviceParameters))
+                        .isInstanceOf(MirrorEvmTransactionException.class)
+                        .hasMessage(
+                                "Cannot remove %s wei from account, balance is only %s",
+                                toHexWith64LeadingZeros(value), toHexWith64LeadingZeros(senderEntity.getBalance()));
             }
         } else {
-            assertThatThrownBy(() -> contractExecutionService.processCall(serviceParameters))
-                    .isInstanceOf(MirrorEvmTransactionException.class)
-                    .hasMessage(
-                            "Cannot remove %s wei from account, balance is only %s",
-                            toHexWith64LeadingZeros(value), toHexWith64LeadingZeros(senderEntity.getBalance()));
+            assertDoesNotThrow(() -> contractExecutionService.processCall(serviceParameters));
         }
         assertGasLimit(serviceParameters);
-        mirrorNodeEvmProperties.setOverridePayerBalanceValidation(false);
+        mirrorNodeEvmProperties.setValidatePayerBalance(true);
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void transferExceedsBalanceHistorical(boolean overridePayerBalance) {
+    void transferExceedsBalanceHistorical(boolean validatePayerBalance) {
         // Given
-        mirrorNodeEvmProperties.setOverridePayerBalanceValidation(overridePayerBalance);
+        mirrorNodeEvmProperties.setValidatePayerBalance(validatePayerBalance);
 
         final var blockNumber = 150L;
         final var historicalRange = setUpHistoricalContext(blockNumber);
@@ -710,24 +709,23 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
         final var serviceParameters = getContractExecutionParametersWithValue(
                 BlockType.of("0x96"), Bytes.EMPTY, senderAddress, receiverAddress, value);
         // Then
-        if (mirrorNodeEvmProperties.isModularizedServices()) {
-            if (mirrorNodeEvmProperties.isOverridePayerBalanceValidation()) {
-                assertThat(contractExecutionService.processCall(serviceParameters))
-                        .isEqualTo(HEX_PREFIX);
-            } else {
+        if (validatePayerBalance) {
+            if (mirrorNodeEvmProperties.isModularizedServices()) {
                 assertThatThrownBy(() -> contractExecutionService.processCall(serviceParameters))
                         .isInstanceOf(MirrorEvmTransactionException.class)
                         .hasMessage(INSUFFICIENT_PAYER_BALANCE.name());
+            } else {
+                assertThatThrownBy(() -> contractExecutionService.processCall(serviceParameters))
+                        .isInstanceOf(MirrorEvmTransactionException.class)
+                        .hasMessage(
+                                "Cannot remove %s wei from account, balance is only %s",
+                                toHexWith64LeadingZeros(value), toHexWith64LeadingZeros(senderEntity.getBalance()));
             }
         } else {
-            assertThatThrownBy(() -> contractExecutionService.processCall(serviceParameters))
-                    .isInstanceOf(MirrorEvmTransactionException.class)
-                    .hasMessage(
-                            "Cannot remove %s wei from account, balance is only %s",
-                            toHexWith64LeadingZeros(value), toHexWith64LeadingZeros(senderEntity.getBalance()));
+            assertDoesNotThrow(() -> contractExecutionService.processCall(serviceParameters));
         }
         assertGasLimit(serviceParameters);
-        mirrorNodeEvmProperties.setOverridePayerBalanceValidation(false);
+        mirrorNodeEvmProperties.setValidatePayerBalance(true);
     }
 
     @Test
@@ -736,7 +734,7 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
         final var receiver = accountEntityWithEvmAddressPersist();
         final var receiverAddress = getAliasAddressFromEntity(receiver);
         final var contract = testWeb3jService.deploy(EthCall::deploy);
-        final var payer = accountEntityWithEvmAddressPersist();
+        final var payer = accountEntityWithEvmAddressAndSufficientBalancePersist();
         accountBalancePersist(payer, payer.getCreatedTimestamp());
         meterRegistry.clear();
         testWeb3jService.setSender(toAddress(payer.toEntityId()).toHexString());
@@ -1122,6 +1120,7 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
                 .callData(data)
                 .callType(callType)
                 .gas(TRANSACTION_GAS_LIMIT)
+                .gasPrice(0L)
                 .isEstimate(callType == ETH_ESTIMATE_GAS)
                 .isModularized(mirrorNodeEvmProperties.isModularizedServices())
                 .isStatic(false)
@@ -1177,6 +1176,7 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
                 .callData(data)
                 .callType(callType)
                 .gas(TRANSACTION_GAS_LIMIT)
+                .gasPrice(0L)
                 .isEstimate(false)
                 .isModularized(mirrorNodeEvmProperties.isModularizedServices())
                 .isStatic(false)
@@ -1282,5 +1282,77 @@ class ContractCallServiceTest extends ContractCallServicePrecompileHistoricalTes
 
             verify(txnExecutionService, times(1)).execute(any(), anyLong());
         }
+    }
+
+    @Nested
+    class DynamicBalanceValidationTests {
+
+        @Test
+        void balanceValidationEnabledWhenValueIsNonZero() {
+            // Given
+            final var receiver = accountEntityWithEvmAddressPersist();
+            final var sender = accountEntityPersistCustomizable(e -> e.balance(100L));
+            final var params = getContractExecutionParametersWithGasAndValue(
+                    getAliasAddressFromEntity(sender), getAliasAddressFromEntity(receiver), 0L, 1000L);
+
+            // Then
+            assertThatThrownBy(() -> contractExecutionService.processCall(params))
+                    .isInstanceOf(MirrorEvmTransactionException.class)
+                    .hasMessage(INSUFFICIENT_PAYER_BALANCE.name());
+        }
+
+        @Test
+        void balanceValidationEnabledWhenGasPriceIsNonZero() {
+            // Given
+            final var receiver = accountEntityWithEvmAddressPersist();
+            final var sender = accountEntityPersistCustomizable(e -> e.balance(100L));
+            final var params = getContractExecutionParametersWithGasAndValue(
+                    getAliasAddressFromEntity(sender), getAliasAddressFromEntity(receiver), 1_000_000L, 0L);
+
+            // Then
+            assertThatThrownBy(() -> contractExecutionService.processCall(params))
+                    .isInstanceOf(MirrorEvmTransactionException.class)
+                    .hasMessage(INSUFFICIENT_PAYER_BALANCE.name());
+        }
+
+        @Test
+        void balanceValidationDisabledWhenFromNotProvided() {
+            // Given
+            final var receiver = accountEntityWithEvmAddressPersist();
+            final var params = getContractExecutionParametersWithGasAndValue(
+                    Address.ZERO, getAliasAddressFromEntity(receiver), 0L, 0L);
+
+            // Then
+            assertDoesNotThrow(() -> contractExecutionService.processCall(params));
+        }
+
+        @Test
+        void balanceValidationDisabledWhenAllFieldsAreZero() {
+            // Given
+            final var receiver = accountEntityWithEvmAddressPersist();
+            final var sender = accountEntityPersistCustomizable(e -> e.balance(100L));
+            final var params = getContractExecutionParametersWithGasAndValue(
+                    getAliasAddressFromEntity(sender), getAliasAddressFromEntity(receiver), 0L, 0L);
+
+            // Then
+            assertDoesNotThrow(() -> contractExecutionService.processCall(params));
+        }
+    }
+
+    private ContractExecutionParameters getContractExecutionParametersWithGasAndValue(
+            final Address senderAddress, final Address receiverAddress, final long gasPrice, final long value) {
+        return ContractExecutionParameters.builder()
+                .block(BlockType.LATEST)
+                .callData(Bytes.EMPTY)
+                .callType(ETH_CALL)
+                .gas(TRANSACTION_GAS_LIMIT)
+                .gasPrice(gasPrice)
+                .isEstimate(false)
+                .isModularized(mirrorNodeEvmProperties.isModularizedServices())
+                .isStatic(false)
+                .receiver(receiverAddress)
+                .sender(senderAddress)
+                .value(value)
+                .build();
     }
 }

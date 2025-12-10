@@ -71,6 +71,23 @@ public class ContractCallContext {
 
     private ContractCallContext() {}
 
+    /**
+     * Determines if payer balance validation should be performed.
+     * Balance validation is enabled when either gasPrice or value is greater than zero,
+     * and a valid sender is provided.
+     *
+     * @return true if balance validation should be performed, false otherwise
+     */
+    public boolean validatePayerBalance() {
+        if (callServiceParameters == null
+                || callServiceParameters.getSender() == null
+                || callServiceParameters.getSender().isZero()) {
+            return false;
+        }
+
+        return callServiceParameters.getGasPrice() > 0 || callServiceParameters.getValue() > 0;
+    }
+
     public static ContractCallContext get() {
         return SCOPED_VALUE.get();
     }

@@ -314,8 +314,8 @@ class ContractCallNestedCallsTest extends AbstractContractCallServiceOpcodeTrace
         if (mirrorNodeEvmProperties.isModularizedServices()) {
             defaultKycStatus = !defaultKycStatus;
         }
-        final var sender = accountEntityPersist();
-        final var treasury = accountEntityPersist();
+        final var sender = accountEntityWithSufficientBalancePersist();
+        final var treasury = accountEntityWithSufficientBalancePersist();
         final var contract = testWeb3jService.deploy(NestedCalls::deploy);
         final var tokenInfo = getHederaToken(
                 contract.getContractAddress(),
@@ -364,8 +364,8 @@ class ContractCallNestedCallsTest extends AbstractContractCallServiceOpcodeTrace
         if (mirrorNodeEvmProperties.isModularizedServices()) {
             defaultKycStatus = !defaultKycStatus;
         }
-        final var sender = accountEntityPersist();
-        final var treasury = accountEntityPersist();
+        final var sender = accountEntityWithSufficientBalancePersist();
+        final var treasury = accountEntityWithSufficientBalancePersist();
         final var contract = testWeb3jService.deploy(NestedCalls::deploy);
         final var tokenInfo = getHederaToken(
                 contract.getContractAddress(),
@@ -445,7 +445,7 @@ class ContractCallNestedCallsTest extends AbstractContractCallServiceOpcodeTrace
     void nestedDeployTwoContracts() throws Exception {
         // Given
         final var contract = testWeb3jService.deploy(NestedCalls::deploy);
-        final var sender = accountEntityPersist();
+        final var sender = accountEntityWithSufficientBalancePersist();
         testWeb3jService.setValue(100_000_000_000L);
         testWeb3jService.setSender(toAddress(sender.toEntityId()).toHexString());
         // When

@@ -319,6 +319,7 @@ public abstract class AbstractContractCallServiceTest extends Web3IntegrationTes
                 .callData(data)
                 .callType(callType)
                 .gas(TRANSACTION_GAS_LIMIT)
+                .gasPrice(0L)
                 .isEstimate(callType == ETH_ESTIMATE_GAS)
                 .isModularized(isModularized)
                 .isStatic(false)
@@ -569,6 +570,27 @@ public abstract class AbstractContractCallServiceTest extends Web3IntegrationTes
     protected Entity accountEntityWithEvmAddressPersist() {
         final var accountBalance = getDefaultAccountBalance();
         return accountEntityPersistCustomizable(e -> e.type(EntityType.ACCOUNT).balance(accountBalance));
+    }
+
+    /**
+     * Creates an Entity with sufficient balance for testing value transfers.
+     *
+     * @return Entity that is persisted in the database with DEFAULT_ACCOUNT_BALANCE
+     */
+    protected Entity accountEntityWithSufficientBalancePersist() {
+        return accountEntityPersistCustomizable(
+                e -> e.type(EntityType.ACCOUNT).evmAddress(null).alias(null).balance(DEFAULT_ACCOUNT_BALANCE));
+    }
+
+    /**
+     * Method used to create an Entity of type account with evmAddress AND sufficient balance for value transfers.
+     * This ensures the account has DEFAULT_ACCOUNT_BALANCE and an evmAddress for alias operations.
+     * Use this when testing scenarios where value > 0, balance validation is enabled, AND evmAddress is required.
+     *
+     * @return Entity that is persisted in the database with evmAddress and sufficient balance
+     */
+    protected Entity accountEntityWithEvmAddressAndSufficientBalancePersist() {
+        return accountEntityPersistCustomizable(e -> e.type(EntityType.ACCOUNT).balance(DEFAULT_ACCOUNT_BALANCE));
     }
 
     /**
@@ -883,14 +905,14 @@ public abstract class AbstractContractCallServiceTest extends Web3IntegrationTes
     }
 
     /**
-     * Returns the default account balance depending on override setting.
+     * Returns the default account balance depending on validation setting.
      *
      * @return the default account balance
      */
     private long getDefaultAccountBalance() {
-        return mirrorNodeEvmProperties.isOverridePayerBalanceValidation()
-                ? DEFAULT_SMALL_ACCOUNT_BALANCE
-                : DEFAULT_ACCOUNT_BALANCE;
+        return mirrorNodeEvmProperties.isValidatePayerBalance()
+                ? DEFAULT_ACCOUNT_BALANCE
+                : DEFAULT_SMALL_ACCOUNT_BALANCE;
     }
 
     public enum KeyType {
