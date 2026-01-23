@@ -25,7 +25,7 @@ extra.apply {
     set("mapStructVersion", "1.6.3")
     set("nodeJsVersion", "24.13.0")
     set("protobufVersion", "4.33.4")
-    set("reactorGrpcVersion", "1.2.4")
+    set("springGrpcVersion", "0.12.0")
     set("tuweniVersion", "2.3.1")
     set("web3jVersion", "5.0.1")
 }
@@ -40,7 +40,7 @@ dependencies {
         val grpcVersion: String by rootProject.extra
         val mapStructVersion: String by rootProject.extra
         val protobufVersion: String by rootProject.extra
-        val reactorGrpcVersion: String by rootProject.extra
+        val springGrpcVersion: String by rootProject.extra
         val tuweniVersion: String by rootProject.extra
         val web3jVersion: String by rootProject.extra
 
@@ -59,7 +59,6 @@ dependencies {
         api("com.hedera.hashgraph:hedera-protobuf-java-api:$consensusNodeVersion")
         api("com.hedera.hashgraph:sdk:2.66.0")
         api("com.ongres.scram:client:2.1")
-        api("com.salesforce.servicelibs:reactor-grpc-stub:$reactorGrpcVersion")
         api("commons-beanutils:commons-beanutils:1.11.0")
         api("commons-io:commons-io:2.21.0")
         api("io.cucumber:cucumber-bom:7.23.0")
@@ -70,7 +69,6 @@ dependencies {
         api("io.projectreactor:reactor-core-micrometer:1.2.12")
         api("io.vertx:vertx-web:4.5.22") // Temporary until next Fabric8 version
         api("jakarta.inject:jakarta.inject-api:2.0.1")
-        api("net.devh:grpc-spring-boot-starter:3.1.0.RELEASE")
         api("net.java.dev.jna:jna:5.18.1")
         api("org.apache.commons:commons-collections4:4.5.0")
         api("org.apache.commons:commons-compress:1.28.0")
@@ -86,6 +84,8 @@ dependencies {
         api("org.mapstruct:mapstruct:$mapStructVersion")
         api("org.mapstruct:mapstruct-processor:$mapStructVersion")
         api("org.msgpack:jackson-dataformat-msgpack:0.9.11")
+        api("org.springframework.grpc:spring-grpc-spring-boot-starter:$springGrpcVersion")
+        api("org.springframework.grpc:spring-grpc-test:$springGrpcVersion")
         api("org.web3j:core:$web3jVersion")
         api("software.amazon.awssdk:bom:2.41.10")
         api("tech.pegasys:jc-kzg-4844:1.0.0")
