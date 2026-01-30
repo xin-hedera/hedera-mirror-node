@@ -865,6 +865,7 @@ const defaultTransaction = {
   charged_tx_fee: NODE_FEE + NETWORK_FEE + SERVICE_FEE,
   consensus_timestamp: null,
   entity_id: null,
+  high_volume: false,
   inner_transactions: null,
   max_custom_fees: [],
   max_fee: 33,
@@ -893,6 +894,7 @@ const addTransaction = async (transaction) => {
     valid_start_ns: transaction.valid_start_timestamp,
   };
 
+  transaction.high_volume = transaction.high_volume ?? false;
   transaction.entity_id = encodedIdFromSpecValue(transaction.entity_id);
   transaction.node_account_id = encodedIdFromSpecValue(transaction.nodeAccountId);
   transaction.payer_account_id = encodedIdFromSpecValue(transaction.payerAccountId);
