@@ -2,7 +2,7 @@ apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
   name: hedera-mirror-node
-  namespace: testnet
+  namespace: testnet-citus
 spec:
   interval: 5m
   url: https://hiero-ledger.github.io/hiero-mirror-node/charts
