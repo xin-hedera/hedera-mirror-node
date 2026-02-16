@@ -77,7 +77,7 @@ spec:
         supply: true
     stackgres:
       backup:
-        enabled: false
+        enabled: true
       coordinator:
         persistentVolume:
           size: 65Gi
