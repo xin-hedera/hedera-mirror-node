@@ -30,6 +30,8 @@ spec:
     - kind: Secret
       name: mirror
   values:
+    minio:
+      enabled: true
     traefik:
       service:
         annotations:
