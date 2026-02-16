@@ -30,7 +30,7 @@ spec:
           - /spec/shards/overrides
         target:
           kind: SGShardedCluster
-    mode: warn
+    mode: enabled
   install:
     crds: CreateReplace
   interval: 90s
@@ -76,6 +76,8 @@ spec:
       routes:
         supply: true
     stackgres:
+      backup:
+        enabled: false
       coordinator:
         persistentVolume:
           size: 65Gi
