@@ -17,7 +17,7 @@ plugins {
 // Can't use typed variable syntax due to Dependabot limitations
 extra.apply {
     set("besuVersion", "25.2.2")
-    set("blockNodeVersion", "0.27.0")
+    set("blockNodeVersion", "0.28.0")
     set("consensusNodeVersion", "0.71.1")
     set("grpcVersion", "1.79.0")
     set("jackson-2-bom.version", "2.21.1") // Temporary until next Spring Boot
@@ -76,7 +76,7 @@ dependencies {
         api("org.apache.tuweni:tuweni-units:$tuweniVersion")
         api("org.apache.velocity:velocity-engine-core:2.4.1")
         api("org.gaul:s3proxy:3.0.0")
-        api("org.hiero.block:block-node-protobuf-sources:$blockNodeVersion")
+        api("org.hiero.block-node:protobuf-sources:$blockNodeVersion")
         api("org.hyperledger.besu:secp256k1:0.8.2")
         api("org.hyperledger.besu:besu-datatypes:$besuVersion")
         api("org.hyperledger.besu:evm:$besuVersion")
