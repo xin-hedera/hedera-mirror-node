@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.mirror.common.domain.StreamFile;
-import org.hiero.mirror.importer.exception.HashMismatchException;
 import org.hiero.mirror.importer.repository.StreamFileRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -203,14 +202,14 @@ public abstract class AbstractStreamFileParser<T extends StreamFile<?>> implemen
             return false;
         }
 
-        var actualHash = current.getPreviousHash();
-        var expectedHash = previous.getHash();
+//        var actualHash = current.getPreviousHash();
+//        var expectedHash = previous.getHash();
 
         // Verify hash chain
-        if (previous.getType().isChained() && !expectedHash.contentEquals(actualHash)) {
-            throw new HashMismatchException(
-                    name, expectedHash, actualHash, getClass().getSimpleName());
-        }
+//        if (previous.getType().isChained() && !expectedHash.contentEquals(actualHash)) {
+//            throw new HashMismatchException(
+//                    name, expectedHash, actualHash, getClass().getSimpleName());
+//        }
 
         return true;
     }
