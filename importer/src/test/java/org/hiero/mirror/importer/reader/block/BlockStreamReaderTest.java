@@ -3,6 +3,7 @@
 package org.hiero.mirror.importer.reader.block;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.protobuf.ByteString;
@@ -107,6 +108,15 @@ public final class BlockStreamReaderTest {
 
     private final BlockStreamReader reader = new BlockStreamReaderImpl();
     private final RecordItemBuilder recordItemBuilder = new RecordItemBuilder();
+
+    @Test
+    void readMalformedBlock() {
+        final var file = TestUtils.getResource("data/blockstreams/039.blk.zstd");
+        final var streamFileData = StreamFileData.from(file);
+        final byte[] bytes = streamFileData.getBytes();
+        final var blockStream = createBlockStream(getBlock(streamFileData), bytes, "0000000000000000039.blk.zstd");
+        assertThatCode(() -> reader.read(blockStream)).doesNotThrowAnyException();
+    }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("readTestArgumentsProvider")

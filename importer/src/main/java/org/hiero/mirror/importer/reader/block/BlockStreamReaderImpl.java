@@ -137,9 +137,12 @@ public final class BlockStreamReaderImpl implements BlockStreamReader {
     }
 
     private void readEvents(final ReaderContext context) {
-        while (context.readBlockItemFor(EVENT_HEADER) != null) {
+        int lastIndex;
+        do {
+            lastIndex = context.getIndex();
+            context.readBlockItemFor(EVENT_HEADER);
             readSignedTransactions(context);
-        }
+        } while (lastIndex != context.getIndex());
     }
 
     private void readSignedTransactions(final ReaderContext context) {
@@ -214,7 +217,6 @@ public final class BlockStreamReaderImpl implements BlockStreamReader {
         while ((blockItem = context.readBlockItemFor(ROUND_HEADER)) != null) {
             context.getBlockFile().onNewRound(blockItem.getRoundHeader().getRoundNumber());
             readEvents(context);
-            readSignedTransactions(context);
         }
     }
 
