@@ -214,6 +214,7 @@ public final class BlockStreamReaderImpl implements BlockStreamReader {
         while ((blockItem = context.readBlockItemFor(ROUND_HEADER)) != null) {
             context.getBlockFile().onNewRound(blockItem.getRoundHeader().getRoundNumber());
             readEvents(context);
+            readSignedTransactions(context);
         }
     }
 
