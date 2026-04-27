@@ -15,6 +15,9 @@ spec:
         - values-prod.yaml
         - values-v2.yml
       version: '0.153.0'
+  dependsOn:
+    - name: mirror
+      namespace: common
   driftDetection:
     ignore:
       - paths:
