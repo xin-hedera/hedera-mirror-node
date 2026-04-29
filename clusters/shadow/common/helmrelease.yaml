@@ -33,6 +33,10 @@ spec:
     minio:
       enabled: false
     prometheus:
+      grafana:
+        grafana.ini:
+          auth.basic:
+            enabled: true
       prometheus:
         prometheusSpec:
           resources:
