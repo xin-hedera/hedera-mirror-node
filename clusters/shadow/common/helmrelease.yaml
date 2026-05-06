@@ -53,7 +53,7 @@ spec:
     traefik:
       service:
         annotations:
-          cloud.google.com/neg: '{ "exposed_ports":{ "443":{"name": "mirrornode-shadow-new"} } }'
+          cloud.google.com/neg: '{ "exposed_ports":{ "443":{"name": "mirrornode-shadow"} } }'
     zfs:
       coordinator:
         initialDiskSize: 400GB
