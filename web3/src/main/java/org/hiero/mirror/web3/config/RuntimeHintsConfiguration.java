@@ -13,6 +13,7 @@ import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleGroup;
 import com.swirlds.config.api.ConfigData;
 import org.hibernate.validator.internal.util.logging.Log_$logger;
 import org.hiero.mirror.web3.common.ContractCallContext;
+import org.hiero.mirror.web3.common.TransactionIdOrHashParameter;
 import org.hiero.mirror.web3.viewmodel.ContractCallRequest;
 import org.hiero.mirror.web3.viewmodel.GenericErrorResponse;
 import org.jspecify.annotations.NullMarked;
@@ -53,7 +54,8 @@ final class RuntimeHintsConfiguration {
                     ContractCallContext.class.getName(),
                     ContractCallRequest.class.getName(),
                     GenericErrorResponse.class.getName(),
-                    GenericErrorResponse.ErrorMessage.class.getName());
+                    GenericErrorResponse.ErrorMessage.class.getName(),
+                    TransactionIdOrHashParameter.class.getName());
 
             registerResourcePatterns(
                     hints,
