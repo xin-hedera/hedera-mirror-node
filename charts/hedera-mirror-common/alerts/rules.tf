@@ -1,8 +1,18 @@
-resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
+resource "grafana_folder" "mirror" {
+  title = "Mirror"
+  prevent_destroy_if_not_empty = true
+}
+
+variable "prometheus_datasource_uid" {
+  type        = string
+  default     = "grafanacloud-prom"
+  description = "UID of the Prometheus datasource to query."
+}
+
+resource "grafana_rule_group" "rule_group_grpc" {
   disable_provenance = false
-  org_id             = 1
   name               = "Grpc"
-  folder_uid       = "ed3d21bc-0684-4f81-a791-f2787cca85c3"
+  folder_uid         = grafana_folder.mirror.uid
   interval_seconds = 60
 
   rule {
@@ -17,7 +27,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, statusCode) (rate(grpc_server_processing_duration_seconds_count{application=\\\"grpc\\\",statusCode!~\\\"CANCELLED|DEADLINE_EXCEEDED|INVALID_ARGUMENT|NOT_FOUND|OK\\\"}[5m])) / sum by (cluster, namespace, pod, statusCode) (rate(grpc_server_processing_duration_seconds_count{application=\\\"grpc\\\"}[5m])) > 0.05\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -46,7 +56,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_cpu_usage{application=\\\"grpc\\\"}) / sum by (cluster, namespace, pod) (system_cpu_count{application=\\\"grpc\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -76,7 +86,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (hikaricp_connections_active{application=\\\"grpc\\\"}) / sum by (cluster, namespace, pod) (hikaricp_connections_max{application=\\\"grpc\\\"}) > 0.75\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -106,7 +116,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_files_open_files{application=\\\"grpc\\\"}) / sum by (cluster, namespace, pod) (process_files_max_files{application=\\\"grpc\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -136,7 +146,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(hiero_mirror_grpc_consensus_latency_seconds_sum{application=\\\"grpc\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(hiero_mirror_grpc_consensus_latency_seconds_count{application=\\\"grpc\\\"}[5m])) > 15\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -165,7 +175,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (jvm_memory_used_bytes{application=\\\"grpc\\\"}) / sum by (cluster, namespace, pod) (jvm_memory_max_bytes{application=\\\"grpc\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -195,7 +205,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (increase(logback_events_total{application=\\\"grpc\\\",level=\\\"error\\\"}[1m])) >= 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -224,7 +234,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, type) (hiero_mirror_grpc_subscribers{application=\\\"grpc\\\"}) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -253,7 +263,7 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(spring_data_repository_invocations_seconds_sum{application=\\\"grpc\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(spring_data_repository_invocations_seconds_count{application=\\\"grpc\\\"}[5m])) > 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -271,11 +281,10 @@ resource "grafana_rule_group" "rule_group_5bf8ee7b5c98da5e" {
     is_paused = false
   }
 }
-resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
+resource "grafana_rule_group" "rule_group_importer" {
   disable_provenance = false
-  org_id             = 1
   name               = "Importer"
-  folder_uid       = "ed3d21bc-0684-4f81-a791-f2787cca85c3"
+  folder_uid       = grafana_folder.mirror.uid
   interval_seconds = 60
 
   rule {
@@ -290,7 +299,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_duration_seconds_sum{application=\\\"importer\\\",type=\\\"BALANCE\\\"}[15m])) / sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_duration_seconds_count{application=\\\"importer\\\",type=\\\"BALANCE\\\"}[15m])) > 120\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -321,7 +330,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_latency_seconds_sum{application=\\\"importer\\\",type=\\\"BALANCE\\\"}[15m])) / sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_latency_seconds_count{application=\\\"importer\\\",type=\\\"BALANCE\\\"}[15m])) > 960\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -352,7 +361,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"(sum by (cluster, namespace, pod, type, action) (rate(hiero_mirror_importer_stream_request_seconds_count{application=\\\"importer\\\",status!~\\\"^2.*\\\"}[2m])) / sum by (cluster, namespace, pod, type, action) (rate(hiero_mirror_importer_stream_request_seconds_count{application=\\\"importer\\\"}[2m]))) > 0.05\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -382,7 +391,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, type, action) (rate(hiero_mirror_importer_stream_request_seconds_sum{application=\\\"importer\\\",status=~\\\"^2.*\\\"}[2m])) / sum by (cluster, namespace, pod, type, action) (rate(hiero_mirror_importer_stream_request_seconds_count{application=\\\"importer\\\",status=~\\\"^2.*\\\"}[2m])) > 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -412,7 +421,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, type) (rate(hiero_mirror_importer_stream_verification_seconds_count{application=\\\"importer\\\",success=\\\"false\\\"}[3m])) / sum by (cluster, namespace, pod, type) (rate(hiero_mirror_importer_stream_verification_seconds_count{application=\\\"importer\\\"}[3m])) > 0.05\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -442,7 +451,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_cpu_usage{application=\\\"importer\\\"}) / sum by (cluster, namespace, pod) (system_cpu_count{application=\\\"importer\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -472,7 +481,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (hikaricp_connections_active{application=\\\"importer\\\"}) / sum by (cluster, namespace, pod) (hikaricp_connections_max{application=\\\"importer\\\"}) > 0.75\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -502,7 +511,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_files_open_files{application=\\\"importer\\\"}) / sum by (cluster, namespace, pod) (process_files_max_files{application=\\\"importer\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -532,7 +541,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (jvm_memory_used_bytes{application=\\\"importer\\\"}) / sum by (cluster, namespace, pod) (jvm_memory_max_bytes{application=\\\"importer\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -562,7 +571,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (increase(logback_events_total{application=\\\"importer\\\",level=\\\"error\\\"}[2m])) >= 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -592,7 +601,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace) (increase(hiero_mirror_importer_parse_duration_seconds_count{application=\\\"importer\\\",type=\\\"BALANCE\\\"}[16m])) < 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -623,7 +632,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, type) (rate(hiero_mirror_importer_stream_signature_verification_total{application=\\\"importer\\\",status=\\\"CONSENSUS_REACHED\\\"}[2m])) / sum by (cluster, namespace, pod, type) (rate(hiero_mirror_importer_stream_signature_verification_total{application=\\\"importer\\\"}[2m])) < 0.33\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -653,7 +662,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace) (rate(hiero_mirror_importer_transaction_latency_seconds_count{application=\\\"importer\\\"}[5m])) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -684,7 +693,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, type) (rate(hiero_mirror_importer_parse_duration_seconds_count{application=\\\"importer\\\",success=\\\"false\\\"}[3m])) / sum by (cluster, namespace, pod, type) (rate(hiero_mirror_importer_parse_duration_seconds_count{application=\\\"importer\\\"}[3m])) > 0.05\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -714,7 +723,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, type, entity) (rate(hiero_mirror_importer_publish_duration_seconds_sum{application=\\\"importer\\\"}[3m])) / sum by (cluster, namespace, pod, type, entity) (rate(hiero_mirror_importer_publish_duration_seconds_count{application=\\\"importer\\\"}[3m])) > 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -744,7 +753,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(spring_data_repository_invocations_seconds_sum{application=\\\"importer\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(spring_data_repository_invocations_seconds_count{application=\\\"importer\\\"}[5m])) > 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -773,7 +782,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (hiero_mirror_importer_reconciliation{application=\\\"importer\\\"}) > 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -802,7 +811,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_duration_seconds_sum{application=\\\"importer\\\",type=\\\"RECORD\\\"}[3m])) / sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_duration_seconds_count{application=\\\"importer\\\",type=\\\"RECORD\\\"}[3m])) > 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -833,7 +842,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_latency_seconds_sum{application=\\\"importer\\\",type=\\\"RECORD\\\"}[3m])) / sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_parse_latency_seconds_count{application=\\\"importer\\\",type=\\\"RECORD\\\"}[3m])) > 20\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -864,7 +873,7 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_stream_close_latency_seconds_sum{application=\\\"importer\\\",type=\\\"RECORD\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(hiero_mirror_importer_stream_close_latency_seconds_count{application=\\\"importer\\\",type=\\\"RECORD\\\"}[5m])) > 10\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -884,11 +893,10 @@ resource "grafana_rule_group" "rule_group_b56cf69bf40c913c" {
     is_paused = false
   }
 }
-resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
+resource "grafana_rule_group" "rule_group_monitor" {
   disable_provenance = false
-  org_id             = 1
   name               = "Monitor"
-  folder_uid       = "ed3d21bc-0684-4f81-a791-f2787cca85c3"
+  folder_uid       = grafana_folder.mirror.uid
   interval_seconds = 60
 
   rule {
@@ -903,7 +911,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_cpu_usage{application=\\\"monitor\\\"}) / sum by (cluster, namespace, pod) (system_cpu_count{application=\\\"monitor\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -933,7 +941,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (jvm_memory_used_bytes{application=\\\"monitor\\\"}) / sum by (cluster, namespace, pod) (jvm_memory_max_bytes{application=\\\"monitor\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -963,7 +971,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (increase(logback_events_total{application=\\\"monitor\\\",level=\\\"error\\\"}[2m])) >= 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -993,7 +1001,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, scenario) (rate(hiero_mirror_monitor_publish_submit_seconds_count{application=\\\"monitor\\\",status!=\\\"SUCCESS\\\"}[2m])) / sum by (cluster, namespace, pod, scenario) (rate(hiero_mirror_monitor_publish_submit_seconds_count{application=\\\"monitor\\\"}[2m])) > 0.5\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1023,7 +1031,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(hiero_mirror_monitor_publish_submit_seconds_sum{application=\\\"monitor\\\"}[2m])) by (cluster, namespace, pod, scenario) / sum(rate(hiero_mirror_monitor_publish_submit_seconds_count{application=\\\"monitor\\\"}[2m])) by (cluster, namespace, pod, scenario) > 7\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1053,7 +1061,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace) (rate(hiero_mirror_monitor_publish_submit_seconds_count{application=\\\"monitor\\\",status=~\\\"(PLATFORM_NOT_ACTIVE|UNAVAILABLE)\\\"}[2m])) / sum by (cluster, namespace) (rate(hiero_mirror_monitor_publish_submit_seconds_count{application=\\\"monitor\\\"}[2m])) > 0.33\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1083,7 +1091,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"(sum by (cluster, namespace, pod, scenario) (rate(hiero_mirror_monitor_publish_submit_seconds_sum{application=\\\"monitor\\\"}[2m])) / sum by (cluster, namespace, pod, scenario) (rate(hiero_mirror_monitor_publish_submit_seconds_count{application=\\\"monitor\\\"}[2m])) > 0 or on () vector(0)) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1112,7 +1120,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod, scenario) (rate(hiero_mirror_monitor_publish_handle_seconds_sum{application=\\\"monitor\\\"}[5m])) / sum by (cluster, namespace, pod, scenario) (rate(hiero_mirror_monitor_publish_handle_seconds_count{application=\\\"monitor\\\"}[5m])) > 11\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1142,7 +1150,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(hiero_mirror_monitor_subscribe_e2e_seconds_sum{application=\\\"monitor\\\"}[2m])) by (cluster, namespace, pod, scenario, subscriber) / sum(rate(hiero_mirror_monitor_subscribe_e2e_seconds_count{application=\\\"monitor\\\"}[2m])) by (cluster, namespace, pod, scenario, subscriber) > 14\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1171,7 +1179,7 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"(sum by (cluster, namespace, pod, subscriber, scenario) (rate(hiero_mirror_monitor_subscribe_e2e_seconds_sum{application=\\\"monitor\\\"}[2m])) / sum by (cluster, namespace, pod, subscriber, scenario) (rate(hiero_mirror_monitor_subscribe_e2e_seconds_count{application=\\\"monitor\\\"}[2m])) > 0 or on () vector(0)) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1189,11 +1197,10 @@ resource "grafana_rule_group" "rule_group_f04e3f23ed64f10a" {
     is_paused = false
   }
 }
-resource "grafana_rule_group" "rule_group_2612cf19d5434cb4" {
+resource "grafana_rule_group" "rule_group_rest" {
   disable_provenance = false
-  org_id             = 1
   name               = "Rest"
-  folder_uid       = "ed3d21bc-0684-4f81-a791-f2787cca85c3"
+  folder_uid       = grafana_folder.mirror.uid
   interval_seconds = 60
 
   rule {
@@ -1208,7 +1215,7 @@ resource "grafana_rule_group" "rule_group_2612cf19d5434cb4" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace) (rate(api_request_total{code=~\\\"^5..\\\",container=\\\"rest\\\"}[1m])) / sum by (cluster, namespace) (rate(api_request_total{container=\\\"rest\\\"}[1m])) > 0.01\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1237,7 +1244,7 @@ resource "grafana_rule_group" "rule_group_2612cf19d5434cb4" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (nodejs_process_cpu_usage_percentage{container=\\\"rest\\\"}) / 100 > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1267,7 +1274,7 @@ resource "grafana_rule_group" "rule_group_2612cf19d5434cb4" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace) (rate(api_all_request_total{container=\\\"rest\\\"}[3m])) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1296,7 +1303,7 @@ resource "grafana_rule_group" "rule_group_2612cf19d5434cb4" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(api_request_duration_milliseconds_sum{container=\\\"rest\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(api_request_duration_milliseconds_count{container=\\\"rest\\\"}[5m])) > 2000\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1314,11 +1321,10 @@ resource "grafana_rule_group" "rule_group_2612cf19d5434cb4" {
     is_paused = false
   }
 }
-resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
+resource "grafana_rule_group" "rule_group_restjava" {
   disable_provenance = false
-  org_id             = 1
   name               = "RestJava"
-  folder_uid       = "ed3d21bc-0684-4f81-a791-f2787cca85c3"
+  folder_uid       = grafana_folder.mirror.uid
   interval_seconds = 60
 
   rule {
@@ -1333,7 +1339,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(http_server_requests_seconds_count{application=\\\"rest-java\\\", status=\\\"SERVER_ERROR\\\"}[5m])) by (cluster, namespace, pod) / sum(rate(http_server_requests_seconds_count{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, pod) > 0.05\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1362,7 +1368,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(process_cpu_usage{application=\\\"rest-java\\\"}) by (cluster, namespace, pod) / sum(system_cpu_count{application=\\\"rest-java\\\"}) by (cluster, namespace, pod) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1391,7 +1397,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(hikaricp_connections_active{application=\\\"rest-java\\\"}) by (cluster, namespace, pod) / sum(hikaricp_connections_max{application=\\\"rest-java\\\"}) by (cluster, namespace, pod) > 0.75\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1421,7 +1427,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_files_open_files{application=\\\"rest-java\\\"}) / sum by (cluster, namespace, pod) (process_files_max_files{application=\\\"rest-java\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1451,7 +1457,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(jvm_memory_used_bytes{application=\\\"rest-java\\\"}) by (cluster, namespace, pod) / sum(jvm_memory_max_bytes{application=\\\"rest-java\\\"}) by (cluster, namespace, pod) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1481,7 +1487,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(increase(logback_events_total{application=\\\"rest-java\\\", level=\\\"error\\\"}[1m])) by (cluster, namespace, pod) >= 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1510,7 +1516,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(http_server_requests_seconds_count{application=\\\"rest-java\\\"}[3m])) by (cluster, namespace) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1539,7 +1545,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(spring_data_repository_invocations_seconds_sum{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, pod) / sum(rate(spring_data_repository_invocations_seconds_count{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, pod) > 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1568,7 +1574,7 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(http_server_requests_seconds_sum{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, pod) / sum(rate(http_server_requests_seconds_count{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, pod) > 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1586,11 +1592,10 @@ resource "grafana_rule_group" "rule_group_c0dfb8053db641fc" {
     is_paused = false
   }
 }
-resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
+resource "grafana_rule_group" "rule_group_web3" {
   disable_provenance = false
-  org_id             = 1
   name               = "Web3"
-  folder_uid       = "ed3d21bc-0684-4f81-a791-f2787cca85c3"
+  folder_uid       = grafana_folder.mirror.uid
   interval_seconds = 60
 
   rule {
@@ -1605,7 +1610,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(http_server_requests_seconds_count{application=\\\"web3\\\",status=\\\"SERVER_ERROR\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(http_server_requests_seconds_count{application=\\\"web3\\\"}[5m])) > 0.05\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1634,7 +1639,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_cpu_usage{application=\\\"web3\\\"}) / sum by (cluster, namespace, pod) (system_cpu_count{application=\\\"web3\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1663,7 +1668,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (hikaricp_connections_active{application=\\\"web3\\\"}) / sum by (cluster, namespace, pod) (hikaricp_connections_max{application=\\\"web3\\\"}) > 0.75\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1693,7 +1698,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (jvm_memory_used_bytes{application=\\\"web3\\\"}) / sum by (cluster, namespace, pod) (jvm_memory_max_bytes{application=\\\"web3\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1723,7 +1728,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (increase(logback_events_total{application=\\\"web3\\\",level=\\\"error\\\"}[1m])) >= 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1752,7 +1757,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace) (rate(http_server_requests_seconds_count{application=\\\"web3\\\"}[3m])) <= 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1781,7 +1786,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(spring_data_repository_invocations_seconds_sum{application=\\\"web3\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(spring_data_repository_invocations_seconds_count{application=\\\"web3\\\"}[5m])) > 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1810,7 +1815,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (rate(http_server_requests_seconds_sum{application=\\\"web3\\\"}[5m])) / sum by (cluster, namespace, pod) (rate(http_server_requests_seconds_count{application=\\\"web3\\\"}[5m])) > 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1839,7 +1844,7 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
         to   = 0
       }
 
-      datasource_uid = "grafanacloud-prom"
+      datasource_uid = var.prometheus_datasource_uid
       model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (process_files_open_files{application=\\\"web3\\\"}) / sum by (cluster, namespace, pod) (process_files_max_files{application=\\\"web3\\\"}) > 0.8\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
@@ -1858,4 +1863,3 @@ resource "grafana_rule_group" "rule_group_5f5a0f74394b7ab3" {
     is_paused = false
   }
 }
-
