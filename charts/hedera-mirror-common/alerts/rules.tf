@@ -1863,3 +1863,251 @@ resource "grafana_rule_group" "rule_group_web3" {
     is_paused = false
   }
 }
+
+resource "grafana_rule_group" "rule_group_database" {
+  disable_provenance = false
+  name               = "Database"
+  folder_uid       = grafana_folder.mirror.uid
+  interval_seconds = 60
+
+  rule {
+    name      = "DatabaseInstanceDown"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pg_up) == 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "5m"
+    annotations = {
+      description = "{{ $labels.cluster }}: Postgres has not been responding for {{ $labels.namespace }}/{{ $labels.pod }}"
+      summary     = "[{{ $labels.cluster }}] Postgres server instance is down"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "critical"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseExporterErrors"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pg_exporter_last_scrape_error) == 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "10m"
+    annotations = {
+      description = "{{ $labels.cluster }}: postgres-exporter is not running or is showing errors for {{ $labels.namespace }}/{{ $labels.pod }}"
+      summary     = "[{{ $labels.cluster }}] Postgres exporter is down or showing errors"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "warning"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseReplicationLagSizeTooLarge"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pg_replication_status_lag_size) > 1e+09\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "5m"
+    annotations = {
+      description = "{{ $labels.cluster }}: Replication lag on {{ $labels.namespace }}/{{ $labels.pod }} is currently {{ (index $values \"A\").Value | humanize1024 }}B behind the leader"
+      summary     = "[{{ $labels.cluster }}] Postgres replication lag size exceeds 1GB"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "critical"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseInactiveReplicationSlots"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pg_replication_slots_active) == 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "30m"
+    annotations = {
+      description = "{{ $labels.cluster }}: Inactive replication slots on {{ $labels.namespace }}/{{ $labels.pod }}"
+      summary     = "[{{ $labels.cluster }}] Postgres has inactive replication slots"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "warning"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseDemotedNode"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pg_replication_is_replica) == 1 and sum by (cluster, namespace, pod) (changes(pg_replication_is_replica[2m])) > 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "1m"
+    annotations = {
+      description = "{{ $labels.cluster }}: Instance {{ $labels.namespace }}/{{ $labels.pod }} has been demoted to a replica"
+      summary     = "[{{ $labels.cluster }}] Postgres node demoted to replica"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "warning"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseWaitingClients"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pgbouncer_show_pools_cl_waiting) > 0\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "5m"
+    annotations = {
+      description = "{{ $labels.cluster }}: PgBouncer {{ $labels.namespace }}/{{ $labels.pod }} has {{ (index $values \"A\").Value }} waiting clients"
+      summary     = "[{{ $labels.cluster }}] PgBouncer has waiting clients"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "critical"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseQueryTimeTooHigh"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, pod) (pgbouncer_show_stats_avg_query_time) > 3e+06\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "5m"
+    annotations = {
+      description = "{{ $labels.cluster }}: PgBouncer {{ $labels.namespace }}/{{ $labels.pod }} average query duration is {{ (index $values \"A\").Value }} microseconds, exceeding 3s"
+      summary     = "[{{ $labels.cluster }}] PgBouncer average query duration exceeds 3s"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "critical"
+    }
+    is_paused = false
+  }
+  rule {
+    name      = "DatabaseStorageFull"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.prometheus_datasource_uid
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum by (cluster, namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes{node=~\\\".*(worker|coord).*\\\"}) / sum by (cluster, namespace, persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{node=~\\\".*(worker|coord).*\\\"}) >= 0.80\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+    }
+
+    no_data_state  = "NoData"
+    exec_err_state = "Error"
+    for            = "1m"
+    annotations = {
+      description = "{{ $labels.cluster }}: Storage for {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ (index $values \"A\").Value | humanizePercentage }} full"
+      summary     = "[{{ $labels.cluster }}] Database storage exceeds 80% capacity"
+    }
+    labels = {
+      application = "hedera-mirror-common"
+      area        = "resource"
+      severity    = "critical"
+    }
+    is_paused = false
+  }
+}
