@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # - name: Harden Runner
-      #   uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+      #   uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
       #   with:
       #     egress-policy: audit
 
@@ -112,13 +112,13 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Parse Version
         id: version_parser
-        uses: step-security/semver-utils@4ae9c1fd6d1c5f8f152fe7e2efe8069a952c2ace # v4.3.2
+        uses: step-security/semver-utils@5bb182a08240146b23b61cc002cb74004377da4b # v5.0.0
         with:
           lenient: false
           version: ${{ github.event.inputs.version }}
@@ -149,7 +149,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@69c854a83c7f79463f8bdf46772ab09826c560cd # v6.3.1
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           git_commit_gpgsign: true
           git_committer_email: ${{ vars.GIT_USER_EMAIL }}
@@ -166,7 +166,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f # v4
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v4
 
       - name: Create and Switch to Release Branch
         run: |
@@ -187,7 +187,7 @@ jobs:
       - name: Close the Milestone
         if: ${{ steps.version_parser.outputs.prerelease == '' }}
         id: milestone
-        uses: step-security/close-milestone@b097272a7aaa0f5c40dc6bc671d45d35c5e85b51 # v2.2.1
+        uses: step-security/close-milestone@d6e3b63e31f1f869bd3d0403f8cdc1a68f59ab4a # v2.2.2
         with:
           milestone_name: ${{ steps.version_parser.outputs.release }}
         env:
@@ -201,7 +201,7 @@ jobs:
           milestone: ${{ steps.version_parser.outputs.release }}
 
       - name: Commit and Tag
-        uses: step-security/git-auto-commit-action@905c3cd6e9ed2b67b4d46ff401fdb6d745d0ff9d # v7.1.0
+        uses: step-security/git-auto-commit-action@749bc1cc775376092cc4227ba537137f445ca7c3 # v7.1.1
         with:
           commit_author: ${{ steps.gpg_importer.outputs.name }} <${{ steps.gpg_importer.outputs.email }}>
           commit_message: Bump versions for ${{ env.RELEASE_TAG }}
@@ -211,7 +211,7 @@ jobs:
           tagging_message: ${{ env.RELEASE_TAG }}
 
       - name: Create Github Release
-        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
+        uses: step-security/release-action@a0d8e0f90f554c15366ca2c9046bf4090d24adbe # v1.21.0
         with:
           bodyFile: changelog.md
           commit: ${{ env.RELEASE_BRANCH }}
@@ -233,7 +233,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -244,7 +244,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@69c854a83c7f79463f8bdf46772ab09826c560cd # v6.3.1
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           git_commit_gpgsign: true
           git_committer_email: ${{ vars.GIT_USER_EMAIL }}
@@ -261,7 +261,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f # v4
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v4
 
       - name: Reset main to release branch
         run: |
@@ -272,7 +272,7 @@ jobs:
         run: ./gradlew release --newVersion=${{ env.NEXT_VERSION_SNAPSHOT }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           author: ${{ steps.gpg_importer.outputs.name }} <${{ steps.gpg_importer.outputs.email }}>
           body: Bump versions for v${{ env.NEXT_VERSION_SNAPSHOT }}
