@@ -13,7 +13,7 @@ spec:
       valuesFiles:
         - values.yaml
         - values-prod.yaml
-      version: '0.154.0-rc1'
+      version: '0.155.1'
   dependsOn:
     - name: mirror
       namespace: common
@@ -38,16 +38,24 @@ spec:
       hpa:
         minReplicas: 1
     importer:
-      env:
-        HIERO_MIRROR_IMPORTER_NETWORK: "PREVIEWNET"
-        HIERO_MIRROR_IMPORTER_PARSER_RECORD_ENTITY_PERSIST_ENTITYNFTTRANSACTIONS: "true"
-        HIERO_MIRROR_IMPORTER_PARSER_RECORD_SIDECAR_ENABLED: "true"
-        HIERO_MIRROR_IMPORTER_STARTBLOCKNUMBER: "-1"
-        SPRING_PROFILES_ACTIVE: "blocknode"
-      image:
-        registry: docker.io
-        repository: xin323/importer
-        tag: 0.154.0-acb3247cde
+      config:
+        hiero:
+          mirror:
+            importer:
+              block:
+                cutover:
+                  enabled: true
+                  firstStage:
+                    enabled: true
+              network: PREVIEWNET
+              parser:
+                record:
+                  entity:
+                    persist:
+                      entityNftTransactions: true
+                    sidecar:
+                      enabled: true
+              startDate: 2026-04-28T23:03:00Z
     monitor:
       enabled: false
       env:
