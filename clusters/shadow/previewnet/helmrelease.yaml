@@ -55,7 +55,6 @@ spec:
                       entityNftTransactions: true
                   sidecar:
                     enabled: true
-              startDate: 2026-04-28T23:03:00Z
     monitor:
       enabled: false
       env:
