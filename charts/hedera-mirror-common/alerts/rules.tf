@@ -13,6 +13,12 @@ variable "prometheus_datasource_uid" {
   description = "UID of the Prometheus datasource to query."
 }
 
+variable "loki_datasource_uid" {
+  type        = string
+  default     = "grafanacloud-logs"
+  description = "UID of the Loki (logs) datasource to query."
+}
+
 ###############################################################################
 # Notification policies
 ###############################################################################
@@ -72,6 +78,50 @@ resource "grafana_notification_policy" "root" {
       label = "cluster"
       match = "!~"
       value = "staging-lg|staging-sm|staging-council"
+    }
+  }
+
+  # Loki alerts have no env_category, route by "cluster" and the "alert_source=loki" matchers
+  policy {
+    contact_point = var.prod_slack_contact_point
+    matcher {
+      label = "alert_source"
+      match = "="
+      value = "loki"
+    }
+    matcher {
+      label = "severity"
+      match = "=~"
+      value = "warning|critical"
+    }
+    matcher {
+      label = "cluster"
+      match = "=~"
+      value = "mainnet-eu|mainnet-na|testnet-eu|testnet-na|previewnet"
+    }
+  }
+
+  policy {
+    contact_point = var.nonprod_slack_contact_point
+    matcher {
+      label = "alert_source"
+      match = "="
+      value = "loki"
+    }
+    matcher {
+      label = "severity"
+      match = "=~"
+      value = "warning|critical"
+    }
+    matcher {
+      label = "cluster"
+      match = "!~"
+      value = "staging-lg|staging-sm|staging-council"
+    }
+    matcher {
+      label = "namespace"
+      match = "!~"
+      value = "performance-citus"
     }
   }
 }
@@ -2204,6 +2254,94 @@ resource "grafana_rule_group" "rule_group_database" {
       application = "hedera-mirror-common"
       area        = "resource"
       severity    = "critical"
+    }
+    is_paused = false
+  }
+}
+
+###############################################################################
+# Loki (logs) alert rules
+###############################################################################
+
+resource "grafana_rule_group" "rule_group_logs" {
+  disable_provenance = false
+  name               = "Logs"
+  folder_uid         = grafana_folder.mirror.uid
+  interval_seconds   = 60
+
+  rule {
+    name      = "ImporterRecoverableErrors"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.loki_datasource_uid
+      query_type     = "instant"
+      model = jsonencode({
+        editorMode    = "code"
+        expr          = "sum(count_over_time({component=\"importer\"} | regexp `(?P<timestamp>\\S+)\\s+(?P<level>\\S+)\\s+(?P<thread>\\S+)\\s+(?P<class>\\S+)\\s+(?P<message>.+)` | level = \"ERROR\" | message =~ \".*Recoverable error.*\" [1m])) by (cluster, namespace, pod) > 0"
+        queryType     = "instant"
+        intervalMs    = 1000
+        maxDataPoints = 43200
+        refId         = "A"
+      })
+    }
+
+    no_data_state  = "OK"
+    exec_err_state = "Error"
+    annotations = {
+      description = "Recoverable Error Logs for {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }} have reached {{ index $values \"A\" }} error messages/s in a 1m period"
+      summary     = "Recoverable Error found in logs"
+    }
+    labels = {
+      application  = "importer"
+      severity     = "critical"
+      alert_source = "loki"
+    }
+    is_paused = false
+  }
+
+  rule {
+    name      = "RestLogErrors"
+    condition = "A"
+
+    data {
+      ref_id = "A"
+
+      relative_time_range {
+        from = 600
+        to   = 0
+      }
+
+      datasource_uid = var.loki_datasource_uid
+      query_type     = "instant"
+      model = jsonencode({
+        editorMode    = "code"
+        expr          = "sum(rate({component=\"rest\"} | regexp `(?P<timestamp>\\S+)\\s+(?P<level>\\S+)\\s+(?P<requestId>\\S+)\\s+(?P<message>.+)` | level = \"ERROR\" or level = \"FATAL\" != \"canceling statement due to statement timeout\" [1m])) by (cluster, namespace, pod) > 0.04"
+        queryType     = "instant"
+        intervalMs    = 1000
+        maxDataPoints = 43200
+        refId         = "A"
+      })
+    }
+
+    no_data_state  = "OK"
+    exec_err_state = "Error"
+    for            = "1m"
+    annotations = {
+      description = "Logs for {{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }} have reached {{ index $values \"A\" }} error messages/s in a 1m period"
+      summary     = "High rate of log errors"
+    }
+    labels = {
+      application  = "rest"
+      severity     = "critical"
+      alert_source = "loki"
     }
     is_paused = false
   }
