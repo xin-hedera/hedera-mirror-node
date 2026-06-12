@@ -846,7 +846,7 @@ resource "grafana_rule_group" "rule_group_importer" {
 
     no_data_state  = "NoData"
     exec_err_state = "Error"
-    for            = "2m"
+    for            = "5m"
     annotations = {
       description = "Encountered {{ (index $values \"A\").Value| humanizePercentage }} errors trying to parse {{ $labels.type }} stream files for {{ $labels.pod }}"
       summary     = "Error rate parsing {{ $labels.type }} exceeds 5%"
@@ -1693,15 +1693,15 @@ resource "grafana_rule_group" "rule_group_restjava" {
       }
 
       datasource_uid = var.prometheus_datasource_uid
-      model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(spring_data_repository_invocations_seconds_sum{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, env_category, pod) / sum(rate(spring_data_repository_invocations_seconds_count{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, env_category, pod) > 1\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
+      model          = "{\"editorMode\":\"code\",\"expr\":\"sum(rate(spring_data_repository_invocations_seconds_sum{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, env_category, pod) / sum(rate(spring_data_repository_invocations_seconds_count{application=\\\"rest-java\\\"}[5m])) by (cluster, namespace, env_category, pod) > 2\",\"instant\":true,\"intervalMs\":1000,\"legendFormat\":\"__auto\",\"maxDataPoints\":43200,\"range\":false,\"refId\":\"A\"}"
     }
 
     no_data_state  = "NoData"
     exec_err_state = "Error"
-    for            = "1m"
+    for            = "5m"
     annotations = {
       description = "High average database query latency of {{ (index $values \"A\").Value | humanizeDuration }} for {{ $labels.pod }}"
-      summary     = "Mirror Java REST API query latency exceeds 1s"
+      summary     = "Mirror Java REST API query latency exceeds 2s"
     }
     labels = {
       application = "rest-java"
