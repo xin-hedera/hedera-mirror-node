@@ -68,7 +68,16 @@ spec:
         enabled: false
     stackgres:
       backup:
-        enabled: false
+        enabled: true
+        instances:
+        - retention: 1
+          cronSchedule: "0 0 1 * *"
+          compression: lz4
+          useVolumeSnapshot: true
+          fastVolumeSnapshot: true
+          volumeSnapshotClass: zfs
+          performance:
+            uploadDiskConcurrency: 1
       coordinator:
         persistentVolume:
           size: 360Gi
