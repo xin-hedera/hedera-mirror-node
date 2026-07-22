@@ -2,76 +2,82 @@
 
 package org.hiero.mirror.importer.downloader.block;
 
+import com.google.common.collect.ImmutableSortedSet;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.util.Comparator;
+import java.util.SortedSet;
 import lombok.Data;
-import org.apache.commons.lang3.StringUtils;
+import org.hiero.mirror.common.domain.node.RegisteredServiceEndpoint.BlockNodeApi;
 import org.springframework.validation.annotation.Validated;
 
 @Data
 @Validated
-public class BlockNodeProperties implements Comparable<BlockNodeProperties> {
+public final class BlockNodeProperties implements Comparable<BlockNodeProperties> {
+
+    public static final SortedSet<BlockNodeApi> FULL_BLOCK_NODE_APIS =
+            ImmutableSortedSet.of(BlockNodeApi.STATUS, BlockNodeApi.SUBSCRIBE_STREAM);
 
     private static final Comparator<BlockNodeProperties> COMPARATOR = Comparator.comparing(
                     BlockNodeProperties::getPriority)
-            .thenComparing(BlockNodeProperties::getHost)
-            .thenComparing(BlockNodeProperties::getStreamingHost)
-            .thenComparing(BlockNodeProperties::getStatusPort)
-            .thenComparing(BlockNodeProperties::getStreamingPort)
-            .thenComparing(BlockNodeProperties::isStatusApiRequireTls)
-            .thenComparing(BlockNodeProperties::isStreamingApiRequireTls);
+            .thenComparing(BlockNodeProperties::getEndpoints, sortedSetComparator());
 
-    /**
-     * Used for status and streaming (when streamingHost is not set)
-     */
-    @NotBlank
-    private String host;
+    @NotEmpty
+    private SortedSet<@Valid ServiceEndpoint> endpoints;
 
     @Min(0)
     private int priority = 0;
 
-    private boolean statusApiRequireTls;
-
-    @Max(65535)
-    @Min(0)
-    private int statusPort = 40840;
-
-    private boolean streamingApiRequireTls;
-
-    private String streamingHost;
-
-    @Max(65535)
-    @Min(0)
-    private int streamingPort = 40840;
-
     @Override
-    public int compareTo(BlockNodeProperties other) {
+    public int compareTo(final BlockNodeProperties other) {
         return COMPARATOR.compare(this, other);
     }
 
-    public String getStreamingHost() {
-        return StringUtils.isNotBlank(streamingHost) ? streamingHost : host;
+    private static <T extends Comparable<T>> Comparator<SortedSet<T>> sortedSetComparator() {
+        return (a, b) -> {
+            var iterA = a.iterator();
+            var iterB = b.iterator();
+            while (iterA.hasNext() && iterB.hasNext()) {
+                int c = iterA.next().compareTo(iterB.next());
+                if (c != 0) return c;
+            }
+            return Integer.compare(a.size(), b.size());
+        };
     }
 
-    public String getStatusEndpoint() {
-        return host + ":" + statusPort;
-    }
+    @Data
+    @Validated
+    public static final class ServiceEndpoint implements Comparable<ServiceEndpoint> {
 
-    public String getStreamingEndpoint() {
-        return getStreamingHost() + ":" + streamingPort;
-    }
+        private static final Comparator<ServiceEndpoint> COMPARATOR = Comparator.comparing(ServiceEndpoint::getHost)
+                .thenComparingInt(ServiceEndpoint::getPort)
+                .thenComparing(ServiceEndpoint::getApis, BlockNodeProperties.sortedSetComparator())
+                .thenComparing(ServiceEndpoint::isRequiresTls);
 
-    /**
-     * Returns a key that uniquely identifies this block node configuration for merge purposes.
-     * Two configurations are considered the same when both status endpoint (host+port) and
-     * requiresTls match, and both streaming endpoint (host+port) and requiresTls match.
-     */
-    public String getMergeKey() {
-        return getStatusEndpoint()
-                + "|" + statusApiRequireTls
-                + "|" + getStreamingEndpoint()
-                + "|" + streamingApiRequireTls;
+        @NotEmpty
+        private SortedSet<@NotNull BlockNodeApi> apis = FULL_BLOCK_NODE_APIS;
+
+        @NotBlank
+        private String host;
+
+        @Max(65535)
+        @Min(0)
+        private int port = 40840;
+
+        private boolean requiresTls;
+
+        @Override
+        public int compareTo(final ServiceEndpoint other) {
+            return COMPARATOR.compare(this, other);
+        }
+
+        @Override
+        public String toString() {
+            return "%s:%d".formatted(host, port);
+        }
     }
 }

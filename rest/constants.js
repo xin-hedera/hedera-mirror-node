@@ -7,6 +7,7 @@ const SIXTY_SECONDS = 60n;
 const THIRTY_ONE_MINUTES = 31n * 60n;
 const MAX_INT32 = 2147483647;
 const MAX_LONG = 2n ** 63n - 1n;
+const MIN_LONG = -(2n ** 63n);
 const ONE_DAY_IN_NS = 86_400_000_000_000n;
 const ZERO_UINT256 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const AUTO_RENEW_PERIOD_MULTIPLE = BigInt(1e9);
@@ -31,7 +32,6 @@ const filterKeys = {
   CREDIT_TYPE: 'type',
   ENCODING: 'encoding',
   ENTITY_PUBLICKEY: 'publickey',
-  FILE_ID: 'file.id',
   FROM: 'from',
   HBAR: 'hbar',
   ID_OR_ALIAS_OR_EVM_ADDRESS: 'idOrAliasOrEvmAddress',
@@ -39,7 +39,6 @@ const filterKeys = {
   INTERNAL: 'internal',
   LIMIT: 'limit',
   NAME: 'name',
-  NODE_ID: 'node.id',
   NONCE: 'nonce',
   ORDER: 'order',
   RESULT: 'result',
@@ -182,6 +181,7 @@ export {
   THIRTY_ONE_MINUTES,
   MAX_INT32,
   MAX_LONG,
+  MIN_LONG,
   ONE_DAY_IN_NS,
   WEIBARS_TO_TINYBARS,
   ZERO_EVM_ADDRESS,

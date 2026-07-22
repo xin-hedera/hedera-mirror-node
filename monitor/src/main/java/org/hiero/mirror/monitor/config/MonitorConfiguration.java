@@ -17,9 +17,7 @@ import org.hiero.mirror.monitor.publish.TransactionPublisher;
 import org.hiero.mirror.monitor.publish.generator.TransactionGenerator;
 import org.hiero.mirror.monitor.subscribe.MirrorSubscriber;
 import org.hiero.mirror.monitor.subscribe.SubscribeMetrics;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnCloudPlatform;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.cloud.CloudPlatform;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.Disposable;
@@ -28,9 +26,9 @@ import reactor.core.publisher.Hooks;
 import reactor.core.scheduler.Schedulers;
 
 @CustomLog
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @RequiredArgsConstructor
-class MonitorConfiguration {
+final class MonitorConfiguration {
 
     static {
         // Avoid logging a stack trace when the SDK thread throws an exception right after the flux timeout
@@ -49,7 +47,6 @@ class MonitorConfiguration {
     private final TransactionPublisher transactionPublisher;
 
     @Bean
-    @ConditionalOnCloudPlatform(CloudPlatform.KUBERNETES)
     KubernetesClient kubernetesClient() {
         return new KubernetesClientBuilder().build();
     }

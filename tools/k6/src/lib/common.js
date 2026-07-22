@@ -2,10 +2,11 @@
 
 import {check} from 'k6';
 import {scenario as k6Scenario} from 'k6/execution';
-import {Gauge} from 'k6/metrics';
+import {Gauge, Trend} from 'k6/metrics';
 import './parameters.js';
 
 const SCENARIO_DURATION_METRIC_NAME = 'scenario_duration';
+const requestsDurationTrend = new Trend('requests', true);
 
 const options = {
   thresholds: {
@@ -13,8 +14,8 @@ const options = {
     http_req_duration: ['p(95)>=0'], // make it not fail
   },
   insecureSkipTLSVerify: true,
-  noConnectionReuse: true,
-  noVUConnectionReuse: true,
+  noConnectionReuse: false,
+  noVUConnectionReuse: false,
   setupTimeout: __ENV.DEFAULT_SETUP_TIMEOUT,
 };
 
@@ -53,7 +54,9 @@ function getOptionsWithScenario(name, scenario, tags = {}) {
   const sourceScenario = scenario ? Object.assign({}, scenario, scenarioCommon) : scenarioDefaults;
   return Object.assign({}, options, {
     scenarios: {
-      [name]: Object.assign({}, sourceScenario, {tags}),
+      [name]: Object.assign({}, sourceScenario, {
+        tags: Object.assign({namespace: __ENV.NAMESPACE, vus: __ENV.DEFAULT_VUS}, tags),
+      }),
     },
   });
 }
@@ -305,8 +308,17 @@ function sanitizeScenarioName(name) {
   return name.replace(/[^0-9A-Za-z_-]/g, '_');
 }
 
+function recordRequestDuration(response, passed) {
+  requestsDurationTrend.add(response.timings.duration, {passed: String(passed)});
+}
+
+function removeBaseUrl(url) {
+  const parts = url.split('/api/v1');
+  return parts[parts.length - 1];
+}
+
 class TestScenarioBuilder {
-  constructor() {
+  constructor(suite) {
     this._checks = {};
     this._fallbackChecks = {'fallback is 200': (r) => r.status === 200};
     this._fallbackRequest = null;
@@ -316,6 +328,10 @@ class TestScenarioBuilder {
     this._scenario = null;
     this._shouldSkip = null;
     this._tags = {};
+
+    if (suite != null) {
+      this._tags.suite = suite;
+    }
 
     this.build = this.build.bind(this);
     this.check = this.check.bind(this);
@@ -339,7 +355,8 @@ class TestScenarioBuilder {
 
       if (!that._shouldSkip) {
         const response = that._request(testParameters);
-        check(response, that._checks);
+        const passed = check(response, that._checks);
+        recordRequestDuration(response, passed);
       } else {
         // fallback
         const response = that._fallbackRequest(testParameters);
@@ -385,19 +402,24 @@ class TestScenarioBuilder {
   }
 
   tags(tags) {
-    this._tags = tags;
+    Object.assign(this._tags, tags);
     return this;
   }
 }
 
 class MultiIdScenarioBuilder {
-  constructor(ids) {
+  constructor(ids, suite) {
     this._ids = ids;
     this._name = null;
     this._request = null;
     this._checkName = null;
     this._checkFunc = null;
+    this._tags = {};
     this._url = null;
+
+    if (suite != null) {
+      this._tags.suite = suite;
+    }
   }
 
   name(name) {
@@ -425,12 +447,15 @@ class MultiIdScenarioBuilder {
     const that = this;
 
     let combinedOptions;
+    const scenarioUrls = {};
     for (let i = 0; i < that._ids.length; i++) {
       const id = that._ids[i];
       const sanitized = sanitizeScenarioName(id);
       const scenarioName = `${that._name}-${sanitized}`;
       const url = that._url.replace('{id}', id);
-      const options = getOptionsWithScenario(scenarioName, null, {url});
+      scenarioUrls[scenarioName] = url;
+      const tags = Object.assign({}, that._tags, {url: removeBaseUrl(url)});
+      const options = getOptionsWithScenario(scenarioName, null, tags);
       if (!combinedOptions) {
         combinedOptions = options;
       } else {
@@ -440,12 +465,12 @@ class MultiIdScenarioBuilder {
 
     function run() {
       const active = k6Scenario.name;
-      const scenarioDef = combinedOptions.scenarios[active];
-      const url = (scenarioDef && scenarioDef.tags && scenarioDef.tags.url) || '';
+      const url = scenarioUrls[active] || '';
       const response = that._request(url);
-      check(response, {
+      const passed = check(response, {
         [that._checkName]: (r) => that._checkFunc(r),
       });
+      recordRequestDuration(response, passed);
     }
 
     return {options: combinedOptions, run};
@@ -457,6 +482,7 @@ export {
   getSequentialTestScenarios,
   getTestReportFilename,
   markdownReport,
+  recordRequestDuration,
   sanitizeScenarioName,
   TestScenarioBuilder,
   MultiIdScenarioBuilder,

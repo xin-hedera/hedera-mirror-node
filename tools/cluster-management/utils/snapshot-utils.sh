@@ -6,6 +6,8 @@ set -euo pipefail
 
 source ./utils/utils.sh
 
+requireCommand gcloud
+
 normalizeGceSnapshotName() {
   local s="$1" max=63
 
@@ -468,7 +470,12 @@ function cleanupBackupStorage() {
 
       log "Cleaning up wal files in minio bucket ${minioBucket}. Will delete all files at path ${pathToDelete}"
       doContinue
-      kubectl_common exec "${minioPod}" -- mc rm --recursive --force "${pathToDelete}"
+
+      if kubectl_common exec "${minioPod}" -- mc stat "${pathToDelete}" >/dev/null 2>&1; then
+        kubectl_common exec "${minioPod}" -- mc rm --recursive --force "${pathToDelete}"
+      else
+        log "Skipping cleanup. Path does not exist: ${pathToDelete}"
+      fi
     done
   fi
 }
@@ -735,8 +742,7 @@ function patchCitusClusters() {
     shardedClusterName=$(echo "${pvcsInNamespace}" | jq -r '.[0].citusCluster.shardedClusterName')
 
     configureShardedClusterResource "${pvcsInNamespace}" "${shardedClusterName}" "${namespace}"
-    unpauseCitus "${namespace}" "true"
-    updateStackgresCreds "${shardedClusterName}" "${namespace}"
+    unpauseCitus "${namespace}" "true" "true"
     routeTraffic "${namespace}"
   done
 }

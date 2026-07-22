@@ -10,7 +10,7 @@ plugins {
 }
 
 node {
-    val nodeJsVersion: String by rootProject.extra
+    val nodeJsVersion = rootProject.extra["nodeJsVersion"] as String
     download = true
     version = nodeJsVersion
 }
@@ -20,6 +20,7 @@ tasks.register("clean") { layout.buildDirectory.asFile.get().deleteRecursively()
 tasks.register<NpmTask>("run") {
     dependsOn(tasks.npmInstall)
     args = listOf("start")
+    group = "application"
 }
 
 val test =

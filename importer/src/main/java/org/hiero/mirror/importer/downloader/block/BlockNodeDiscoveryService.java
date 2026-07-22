@@ -2,19 +2,24 @@
 
 package org.hiero.mirror.importer.downloader.block;
 
+import static org.hiero.mirror.importer.downloader.block.BlockNodeProperties.FULL_BLOCK_NODE_APIS;
+
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import jakarta.inject.Named;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.CustomLog;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.hiero.mirror.common.domain.node.RegisteredNodeType;
 import org.hiero.mirror.common.domain.node.RegisteredServiceEndpoint;
+import org.hiero.mirror.common.domain.node.RegisteredServiceEndpoint.BlockNodeApi;
 import org.hiero.mirror.importer.parser.record.RegisteredNodeChangedEvent;
 import org.hiero.mirror.importer.repository.RegisteredNodeRepository;
 import org.identityconnectors.common.CollectionUtil;
@@ -43,8 +48,7 @@ public final class BlockNodeDiscoveryService {
     /**
      * Returns a sorted and deduplicated list of block nodes properties, combination of config file properties and
      * auto-discovered ones (read from cache or database). Auto-discovered properties will override config file
-     * properties when they represent the same block node (same status endpoint (host+port) and requiresTls, and
-     * same streaming endpoint (host+port) and requiresTls).
+     * properties when they represent the same block node (by comparing the sorted set of service endpoints).
      * The result is cached. Cache is invalidated when registered nodes are created, updated, or deleted.
      */
     public List<BlockNodeProperties> getBlockNodes() {
@@ -53,9 +57,10 @@ public final class BlockNodeDiscoveryService {
                 return propertiesList;
             }
 
-            final var configurationsMap = new HashMap<String, BlockNodeProperties>();
+            final var configurationsMap =
+                    new HashMap<SortedSet<BlockNodeProperties.ServiceEndpoint>, BlockNodeProperties>();
             for (final var properties : Iterables.concat(blockProperties.getNodes(), discover())) {
-                configurationsMap.put(properties.getMergeKey(), properties);
+                configurationsMap.put(properties.getEndpoints(), properties);
             }
 
             final var result = new ArrayList<>(configurationsMap.values());
@@ -78,7 +83,7 @@ public final class BlockNodeDiscoveryService {
 
             final List<BlockNodeProperties> propertiesList = new ArrayList<>(nodes.size());
             for (final var node : nodes) {
-                toBlockNodeProperties(node.getServiceEndpoints()).ifPresent(propertiesList::add);
+                tryAddBlockNodeProperties(propertiesList, node.getServiceEndpoints());
             }
 
             return propertiesList;
@@ -109,56 +114,75 @@ public final class BlockNodeDiscoveryService {
         return null;
     }
 
-    /**
-     * Returns the properties of tier 1 block nodes (block nodes that have
-     * PUBLISH_API, STATUS_API, and SUBSCRIBE_STREAM_API endpoints).
-     */
-    private static Optional<BlockNodeProperties> toBlockNodeProperties(
-            final List<RegisteredServiceEndpoint> endpoints) {
-        if (CollectionUtil.isEmpty(endpoints)) {
-            return Optional.empty();
+    private static BlockNodeProperties.@Nullable ServiceEndpoint convert(final RegisteredServiceEndpoint endpoint) {
+        final var host = extractHost(endpoint);
+        if (host == null) {
+            return null;
         }
 
-        boolean hasPublishEndpoint = false;
-        RegisteredServiceEndpoint statusEndpoint = null;
-        RegisteredServiceEndpoint streamEndpoint = null;
+        final var apis = new ArrayList<BlockNodeApi>();
+        for (final var api : endpoint.getBlockNode().getEndpointApis()) {
+            if (api == BlockNodeApi.STATUS || api == BlockNodeApi.SUBSCRIBE_STREAM) {
+                apis.add(api);
+            }
+        }
+
+        final var serviceEndpoint = new BlockNodeProperties.ServiceEndpoint();
+        serviceEndpoint.setApis(ImmutableSortedSet.copyOf(apis));
+        serviceEndpoint.setHost(host);
+        serviceEndpoint.setPort(endpoint.getPort());
+        serviceEndpoint.setRequiresTls(endpoint.isRequiresTls());
+        return serviceEndpoint;
+    }
+
+    /**
+     * Returns the properties of tier 1 block nodes. A tier 1 block node is one that has a single
+     * endpoint advertising all three required APIs: STATUS, PUBLISH, and SUBSCRIBE_STREAM.
+     */
+    private static void tryAddBlockNodeProperties(
+            final List<BlockNodeProperties> propertiesList, final List<RegisteredServiceEndpoint> endpoints) {
+        if (CollectionUtil.isEmpty(endpoints)) {
+            return;
+        }
+
+        boolean isTierOne = false;
+        BlockNodeProperties.ServiceEndpoint fullServiceEndpoint = null;
+        BlockNodeProperties.ServiceEndpoint statusServiceEndpoint = null;
+        BlockNodeProperties.ServiceEndpoint subscribeStreamServiceEndpoint = null;
+
         for (final var endpoint : endpoints) {
-            if (endpoint.getBlockNode() == null) {
+            final var blockNodeEndpoint = endpoint.getBlockNode();
+            if (blockNodeEndpoint == null) {
                 continue;
             }
 
-            // Always pick the first of each required endpoint type
-            switch (endpoint.getBlockNode().getEndpointApi()) {
-                case PUBLISH -> hasPublishEndpoint = true;
-                case STATUS -> statusEndpoint = statusEndpoint == null ? endpoint : statusEndpoint;
-                case SUBSCRIBE_STREAM -> streamEndpoint = streamEndpoint == null ? endpoint : streamEndpoint;
-            }
+            final var endpointApis = EnumSet.copyOf(blockNodeEndpoint.getEndpointApis());
+            isTierOne |= endpointApis.contains(BlockNodeApi.PUBLISH);
 
-            if (hasPublishEndpoint && statusEndpoint != null && streamEndpoint != null) {
-                return toBlockNodeProperties(statusEndpoint, streamEndpoint);
+            if (endpointApis.containsAll(FULL_BLOCK_NODE_APIS) && fullServiceEndpoint == null) {
+                fullServiceEndpoint = convert(endpoint);
+            } else if (endpointApis.contains(BlockNodeApi.STATUS) && statusServiceEndpoint == null) {
+                statusServiceEndpoint = convert(endpoint);
+            } else if (endpointApis.contains(BlockNodeApi.SUBSCRIBE_STREAM) && subscribeStreamServiceEndpoint == null) {
+                subscribeStreamServiceEndpoint = convert(endpoint);
             }
         }
 
-        return Optional.empty();
+        if (!isTierOne) {
+            return;
+        }
+
+        if (fullServiceEndpoint != null) {
+            propertiesList.add(toBlockNodeProperties(fullServiceEndpoint));
+        } else if (statusServiceEndpoint != null && subscribeStreamServiceEndpoint != null) {
+            propertiesList.add(toBlockNodeProperties(statusServiceEndpoint, subscribeStreamServiceEndpoint));
+        }
     }
 
-    private static Optional<BlockNodeProperties> toBlockNodeProperties(
-            final RegisteredServiceEndpoint statusEndpoint, final RegisteredServiceEndpoint streamEndpoint) {
-        final var statusHost = extractHost(statusEndpoint);
-        final var streamHost = extractHost(streamEndpoint);
-
-        if (statusHost == null || streamHost == null) {
-            return Optional.empty();
-        }
-
+    private static BlockNodeProperties toBlockNodeProperties(
+            final BlockNodeProperties.ServiceEndpoint... serviceEndpoints) {
         final var properties = new BlockNodeProperties();
-        properties.setHost(statusHost);
-        properties.setStatusApiRequireTls(statusEndpoint.isRequiresTls());
-        properties.setStatusPort(statusEndpoint.getPort());
-        properties.setStreamingApiRequireTls(streamEndpoint.isRequiresTls());
-        properties.setStreamingHost(streamHost);
-        properties.setStreamingPort(streamEndpoint.getPort());
-
-        return Optional.of(properties);
+        properties.setEndpoints(ImmutableSortedSet.copyOf(serviceEndpoints));
+        return properties;
     }
 }

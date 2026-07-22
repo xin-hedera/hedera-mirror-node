@@ -3,14 +3,16 @@
 import _ from 'lodash';
 import pgformat from 'pg-format';
 import {Range} from 'pg-range';
-import {proto} from '@hiero-ledger/proto';
+import {create, fromBinary, toBinary} from '@bufbuild/protobuf';
+import {AccountIDSchema, TransactionIDSchema, TokenIDSchema} from '../gen/services/basic_types_pb.js';
+import {CustomFeeLimitSchema, FixedFeeSchema} from '../gen/services/custom_fees_pb.js';
 
 import base32 from '../base32';
 import {getMirrorConfig} from '../config';
 import * as constants from '../constants';
 import EntityId from '../entityId';
 import {valueToBuffer} from './testutils';
-import {JSONStringify} from '../utils';
+import {parseInteger, JSONStringify} from '../utils';
 import {encodedIdFromSpecValue} from './integrationUtils';
 
 const config = getMirrorConfig();
@@ -21,6 +23,42 @@ const DEFAULT_FEE_COLLECTOR_NUM = EntityId.systemEntity.networkAdminFeeAccount.n
 const DEFAULT_NODE_ID = 3;
 const DEFAULT_PAYER_ACCOUNT_ID = 102;
 const DEFAULT_SENDER_ID = 101;
+
+const encodeCustomFeeLimitPayload = (fee) => {
+  const acc = fee.accountId;
+  const accountId = create(AccountIDSchema, {
+    shardNum: parseInteger(acc.shardNum),
+    realmNum: parseInteger(acc.realmNum),
+    account: {case: 'accountNum', value: parseInteger(acc.accountNum)},
+  });
+  const fees = (fee.fees ?? []).map((f) => {
+    const tid = f.denominatingTokenId;
+    const hasToken =
+      tid != null &&
+      typeof tid === 'object' &&
+      Object.keys(tid).length > 0 &&
+      (tid.tokenNum != null || tid.shardNum != null || tid.realmNum != null);
+    return create(FixedFeeSchema, {
+      amount: parseInteger(f.amount),
+      denominatingTokenId: hasToken
+        ? create(TokenIDSchema, {
+            shardNum: parseInteger(tid.shardNum),
+            realmNum: parseInteger(tid.realmNum),
+            tokenNum: parseInteger(tid.tokenNum ?? 0),
+          })
+        : undefined,
+    });
+  });
+  return Buffer.from(
+    toBinary(
+      CustomFeeLimitSchema,
+      create(CustomFeeLimitSchema, {
+        accountId,
+        fees,
+      })
+    )
+  );
+};
 
 const defaultFileData = '\\x97c1fc0a6ed5551bc831571325e9bdb365d06803100dc20648640ba24ce69750';
 
@@ -725,7 +763,6 @@ const addEthereumTransaction = async (ethereumTransaction) => {
 
   convertByteaFields(
     [
-      'access_list',
       'call_data',
       'chain_id',
       'data',
@@ -741,6 +778,10 @@ const addEthereumTransaction = async (ethereumTransaction) => {
     ],
     ethTx
   );
+
+  if (ethTx.access_list != null) {
+    ethTx.access_list = JSONStringify(ethTx.access_list);
+  }
 
   if (ethTx.authorization_list != null) {
     ethTx.authorization_list = JSONStringify(ethTx.authorization_list);
@@ -891,6 +932,7 @@ const defaultTransaction = {
   consensus_timestamp: null,
   entity_id: null,
   high_volume: false,
+  high_volume_pricing_multiplier: 1,
   inner_transactions: null,
   max_custom_fees: [],
   max_fee: 33,
@@ -936,7 +978,7 @@ const addTransaction = async (transaction) => {
         });
       }
       fee.accountId = {...fee.accountId, ...idDefaults};
-      return proto.CustomFeeLimit.encode(fee).finish();
+      return encodeCustomFeeLimitPayload(fee);
     });
   }
 
@@ -1249,6 +1291,7 @@ const contractLogDefaults = {
   index: 0,
   payer_account_id: DEFAULT_PAYER_ACCOUNT_ID,
   root_contract_id: null,
+  synthetic: null,
   topic0: '0x97c1fc0a6ed5551bc831571325e9bdb365d06803100dc20648640ba24ce69750',
   topic1: '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925',
   topic2: '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
@@ -1265,9 +1308,14 @@ const addContractLog = async (contractLogInput) => {
 
   convertByteaFields(['bloom', 'data', 'topic0', 'topic1', 'topic2', 'topic3', 'transaction_hash'], contractLog);
   contractLog.contract_id = encodedIdFromSpecValue(contractLog.contract_id);
+  contractLog.payer_account_id = encodedIdFromSpecValue(contractLog.payer_account_id);
   contractLog.root_contract_id = encodedIdFromSpecValue(contractLog.root_contract_id);
 
   await insertDomainObject('contract_log', Object.keys(contractLog), contractLog);
+};
+
+const addSyntheticContractLog = async (contractLogInput) => {
+  return addContractLog({synthetic: true, ...contractLogInput});
 };
 
 const defaultContractStateChange = {
@@ -1386,13 +1434,16 @@ const addTopicMessage = async (message) => {
 
   message.initial_transaction_id = valueToBuffer(message.initial_transaction_id);
   if (message.initial_transaction_id) {
-    const initialTransactionIdProto = proto.TransactionID.decode(valueToBuffer(message.initial_transaction_id));
-    initialTransactionIdProto.accountID = proto.AccountID.create({
-      accountNum: initialTransactionIdProto.accountID.accountNum,
-      shardNum: `${config.common.shard}`,
-      realmNum: `${config.common.realm}`,
+    const initialBuf = valueToBuffer(message.initial_transaction_id);
+    const initialTransactionIdProto = fromBinary(TransactionIDSchema, initialBuf);
+    const prevAccount = initialTransactionIdProto.accountID;
+    const accountNum = prevAccount?.account?.case === 'accountNum' ? prevAccount.account.value : 0n;
+    initialTransactionIdProto.accountID = create(AccountIDSchema, {
+      shardNum: parseInteger(config.common.shard),
+      realmNum: parseInteger(config.common.realm),
+      account: {case: 'accountNum', value: accountNum},
     });
-    message.initial_transaction_id = proto.TransactionID.encode(initialTransactionIdProto).finish();
+    message.initial_transaction_id = Buffer.from(toBinary(TransactionIDSchema, initialTransactionIdProto));
   }
   message.payer_account_id = encodedIdFromSpecValue(message.payer_account_id);
   message.topic_id = encodedIdFromSpecValue(message.topic_id);
@@ -1761,6 +1812,7 @@ const isHistory = (entity) => 'timestamp_range' in entity && !entity.timestamp_r
 
 export default {
   addAccount,
+  addSyntheticContractLog,
   addCryptoTransaction,
   addNft,
   addStakingRewardTransfer,

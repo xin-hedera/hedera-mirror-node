@@ -2,16 +2,28 @@
 
 package org.hiero.mirror.importer.downloader.block.simulator;
 
+import static org.hiero.mirror.importer.downloader.block.BlockNodeTestUtils.singleEndpointProperties;
+
+import com.github.luben.zstd.ZstdOutputStream;
 import com.hedera.hapi.block.stream.protoc.BlockItem;
+import io.grpc.Compressor;
+import io.grpc.CompressorRegistry;
 import io.grpc.ForwardingServerBuilder;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.netty.NettyServerBuilder;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -28,17 +40,37 @@ import org.springframework.util.CollectionUtils;
 
 public final class BlockNodeSimulator implements AutoCloseable {
 
-    private List<BlockItemSet> blocks = Collections.emptyList();
+    private static final Compressor ZSTD_COMPRESSOR = new Compressor() {
+        @Override
+        public String getMessageEncoding() {
+            return "zstd";
+        }
+
+        @Override
+        public OutputStream compress(OutputStream os) throws IOException {
+            return new ZstdOutputStream(os);
+        }
+    };
+
+    private List<BlockGenerator.BlockRecord> blocks = Collections.emptyList();
     private int chunksPerBlock = 1;
     private long firstBlockNumber;
     private String host;
+    private String hostPrefix;
     private boolean inProcessChannel = true;
+    private Duration interval;
     private long lastBlockNumber;
+    private final AtomicInteger latency = new AtomicInteger();
+    private boolean missingBlock;
     private boolean outOfOrder;
+
+    @Getter
     private int port;
+
+    private int priority;
     private Server server;
     private boolean started;
-    private boolean missingBlock;
+    private boolean zstdCompression;
 
     @Override
     @SneakyThrows
@@ -50,6 +82,11 @@ public final class BlockNodeSimulator implements AutoCloseable {
         server.shutdown();
         server.awaitTermination();
         started = false;
+    }
+
+    public String getEndpoint() {
+        validateState(started, "BlockNodeSimulator has not been started");
+        return String.format("%s:%d", host, port);
     }
 
     @SneakyThrows
@@ -65,13 +102,20 @@ public final class BlockNodeSimulator implements AutoCloseable {
             blocks.remove(blocks.size() - 2);
         }
 
-        ForwardingServerBuilder<?> serverBuilder;
+        final ForwardingServerBuilder<?> serverBuilder;
         if (inProcessChannel) {
-            host = RandomStringUtils.secure().nextAlphabetic(8);
+            host = Objects.requireNonNullElse(hostPrefix, "")
+                    + RandomStringUtils.secure().nextAlphabetic(8);
             serverBuilder = InProcessServerBuilder.forName(host);
         } else {
             host = "localhost";
             serverBuilder = NettyServerBuilder.forPort(0);
+        }
+
+        if (zstdCompression) {
+            final var compressorRegistry = CompressorRegistry.newEmptyInstance();
+            compressorRegistry.register(ZSTD_COMPRESSOR);
+            serverBuilder.compressorRegistry(compressorRegistry);
         }
 
         server = serverBuilder
@@ -84,20 +128,33 @@ public final class BlockNodeSimulator implements AutoCloseable {
         return this;
     }
 
+    public void setLatency(int latency) {
+        if (latency < 0) {
+            throw new IllegalArgumentException("Latency must be a non-negative integer");
+        }
+
+        this.latency.set(latency);
+    }
+
     public BlockNodeProperties toClientProperties() {
         validateState(started, "BlockNodeSimulator has not been started");
-        var properties = new BlockNodeProperties();
-        properties.setHost(host);
-        properties.setStatusPort(port);
-        properties.setStreamingPort(port);
+        final var properties = singleEndpointProperties(host, port);
+        properties.setPriority(priority);
         return properties;
     }
 
-    public BlockNodeSimulator withBlocks(List<BlockItemSet> blocks) {
+    public BlockNodeSimulator withBlocks(List<BlockGenerator.BlockRecord> blocks) {
         validateArg(!CollectionUtils.isEmpty(blocks), "blocks can't be empty");
         this.blocks = new ArrayList<>(blocks);
-        firstBlockNumber = blocks.getFirst().getBlockItems(0).getBlockHeader().getNumber();
-        lastBlockNumber = blocks.getLast().getBlockItems(0).getBlockHeader().getNumber();
+        firstBlockNumber =
+                blocks.getFirst().block().getBlockItems(0).getBlockHeader().getNumber();
+        lastBlockNumber =
+                blocks.getLast().block().getBlockItems(0).getBlockHeader().getNumber();
+        return this;
+    }
+
+    public BlockNodeSimulator withBlockInterval(Duration interval) {
+        this.interval = interval;
         return this;
     }
 
@@ -107,8 +164,28 @@ public final class BlockNodeSimulator implements AutoCloseable {
         return this;
     }
 
+    public BlockNodeSimulator withHostPrefix(String hostPrefix) {
+        this.hostPrefix = hostPrefix;
+        return this;
+    }
+
     public BlockNodeSimulator withHttpChannel() {
         inProcessChannel = false;
+        return this;
+    }
+
+    public BlockNodeSimulator withInProcessChannel() {
+        inProcessChannel = true;
+        return this;
+    }
+
+    public BlockNodeSimulator withLatency(int latency) {
+        this.latency.set(latency);
+        return this;
+    }
+
+    public BlockNodeSimulator withMissingBlock() {
+        this.missingBlock = true;
         return this;
     }
 
@@ -117,8 +194,13 @@ public final class BlockNodeSimulator implements AutoCloseable {
         return this;
     }
 
-    public BlockNodeSimulator withMissingBlock() {
-        this.missingBlock = true;
+    public BlockNodeSimulator withPriority(int priority) {
+        this.priority = priority;
+        return this;
+    }
+
+    public BlockNodeSimulator withZstdCompression(final boolean compressed) {
+        this.zstdCompression = compressed;
         return this;
     }
 
@@ -168,6 +250,10 @@ public final class BlockNodeSimulator implements AutoCloseable {
         final StreamObserver<SubscribeStreamResponse> responseObserver;
 
         void stream() {
+            if (zstdCompression) {
+                ((ServerCallStreamObserver<SubscribeStreamResponse>) responseObserver).setCompression("zstd");
+            }
+
             if (request.getStartBlockNumber() > lastBlockNumber) {
                 responseObserver.onNext(SubscribeStreamResponse.newBuilder()
                         .setStatus(SubscribeStreamResponse.Code.INVALID_START_BLOCK_NUMBER)
@@ -177,11 +263,23 @@ public final class BlockNodeSimulator implements AutoCloseable {
             }
 
             // no other sanity checks, add when needed
-            int index = (int) (request.getStartBlockNumber() - firstBlockNumber);
-            for (; index < blocks.size(); index++) {
-                var block = blocks.get(index);
+            boolean isInfiniteStreaming = request.getEndBlockNumber() == -1;
+            int start = (int) (request.getStartBlockNumber() - firstBlockNumber);
+            long last = isInfiniteStreaming ? blocks.size() : Math.min(blocks.size(), request.getEndBlockNumber() + 1);
+
+            var responseCallObserver = (ServerCallStreamObserver<SubscribeStreamResponse>) responseObserver;
+            for (int i = 0; i < last - start; i++) {
+                if (responseCallObserver.isCancelled()) {
+                    responseObserver.onCompleted();
+                    return;
+                }
+
+                int index = start + i;
+                delayBlock(index, isInfiniteStreaming);
+
+                var block = blocks.get(index).block();
                 if (chunksPerBlock == 1) {
-                    responseObserver.onNext(blockResponse(blocks.get(index)));
+                    responseObserver.onNext(blockResponse(block));
                 } else {
                     int chunkSize = Math.max(1, block.getBlockItemsCount() / chunksPerBlock);
                     for (int startIndex = 0; startIndex < block.getBlockItemsCount(); startIndex += chunkSize) {
@@ -204,6 +302,30 @@ public final class BlockNodeSimulator implements AutoCloseable {
         private static SubscribeStreamResponse blockResponse(Collection<BlockItem> items) {
             return blockResponse(
                     BlockItemSet.newBuilder().addAllBlockItems(items).build());
+        }
+
+        @SneakyThrows
+        private void delayBlock(int index, boolean isInfiniteStreaming) {
+            if (interval == null) {
+                return;
+            }
+
+            // default delay when startBlockNumber == endBlockNumber in request (only in async background latency check)
+            // or not the first block
+            long delay = interval.toMillis() + latency.get();
+            if (isInfiniteStreaming && index != 0) {
+                // calculate the delay based on the previous streamed block's stats
+                var record = blocks.get(index - 1);
+                delay += record.readyTime().get() - record.latency().get() - System.currentTimeMillis();
+            }
+
+            if (delay > 0) {
+                Thread.sleep(delay);
+            }
+
+            var record = blocks.get(index);
+            record.latency().compareAndExchange(0L, latency.get());
+            record.readyTime().compareAndExchange(0L, System.currentTimeMillis());
         }
 
         private static SubscribeStreamResponse endOfBlock(final long blockNumber) {

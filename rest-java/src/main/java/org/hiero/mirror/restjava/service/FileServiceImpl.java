@@ -9,16 +9,18 @@ import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.ExchangeRateSet;
 import jakarta.inject.Named;
 import jakarta.persistence.EntityNotFoundException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.AccessLevel;
 import lombok.CustomLog;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.mirror.common.domain.SystemEntity;
 import org.hiero.mirror.common.domain.entity.EntityId;
 import org.hiero.mirror.restjava.dto.SystemFile;
 import org.hiero.mirror.restjava.repository.FileDataRepository;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryPolicy;
 import org.springframework.core.retry.RetryTemplate;
@@ -27,12 +29,17 @@ import org.springframework.util.function.ThrowingFunction;
 @CustomLog
 @Named
 @RequiredArgsConstructor
-class FileServiceImpl implements FileService {
+final class FileServiceImpl implements FileService {
 
     private final FileDataRepository fileDataRepository;
+    private final QueryProperties queryProperties;
     private final SystemEntity systemEntity;
+
+    @Getter(lazy = true, value = AccessLevel.PRIVATE)
     private final RetryTemplate retryTemplate = new RetryTemplate(RetryPolicy.builder()
-            .maxRetries(9)
+            .delay(Duration.ofMillis(10L))
+            .maxDelay(Duration.ofMillis(50L))
+            .maxRetries(queryProperties.getMaxFileAttempts() - 1)
             .predicate(e -> e instanceof InvalidProtocolBufferException
                     || e instanceof ParseException
                     || e.getCause() instanceof InvalidProtocolBufferException
@@ -50,7 +57,6 @@ class FileServiceImpl implements FileService {
     }
 
     @Override
-    @Cacheable(cacheNames = "simpleFeeSchedule", cacheManager = "feeCacheManager", key = "'latest'")
     public SystemFile<FeeSchedule> getSimpleFeeSchedule(Bound timestamp) {
         return getSystemFile(
                 systemEntity.simpleFeeScheduleFile(),
@@ -68,7 +74,7 @@ class FileServiceImpl implements FileService {
         final var attempt = new AtomicInteger(0);
 
         try {
-            return retryTemplate
+            return getRetryTemplate()
                     .execute(() -> fileDataRepository
                             .getFileAtTimestamp(entityId.getId(), lowerBound, upperBound.get())
                             .map(fileData -> {
@@ -76,11 +82,11 @@ class FileServiceImpl implements FileService {
                                     return new SystemFile<>(fileData, parser.apply(fileData.getFileData()));
                                 } catch (Exception e) {
                                     log.warn(
-                                            "Attempt {} failed to load file {} at {}, falling back to previous file.",
+                                            "Attempt {} failed to load file {} at {}, falling back to previous file: {}",
                                             attempt.incrementAndGet(),
                                             entityId,
                                             fileData.getConsensusTimestamp(),
-                                            e);
+                                            e.getMessage());
                                     upperBound.set(fileData.getConsensusTimestamp() - 1);
                                     throw e;
                                 }

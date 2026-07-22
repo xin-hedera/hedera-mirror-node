@@ -48,6 +48,11 @@ spec:
             value: "true"
             effect: NoSchedule
         {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.stackgres.terminationGracePeriodGracePeriodSeconds }}
+    replication:
+      # can remove this initialization block once https://gitlab.com/ongresinc/stackgres/-/work_items/3140 is resolved
+      initialization:
+        mode: {{ .Values.stackgres.replication.initialization.mode }}
     sgInstanceProfile: {{ include "hedera-mirror.stackgres" . }}-coordinator
   database: {{ .Values.db.name }}
   nonProductionOptions:
@@ -92,6 +97,7 @@ spec:
             value: "true"
             effect: NoSchedule
         {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.stackgres.terminationGracePeriodGracePeriodSeconds }}
     sgInstanceProfile: {{ include "hedera-mirror.stackgres" . }}-worker
   type: citus
 {{- end -}}

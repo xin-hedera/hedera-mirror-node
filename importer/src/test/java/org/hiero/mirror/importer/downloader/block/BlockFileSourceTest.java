@@ -5,7 +5,9 @@ package org.hiero.mirror.importer.downloader.block;
 import static org.apache.commons.lang3.StringUtils.countMatches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.from;
 import static org.hiero.mirror.importer.TestUtils.S3_PROXY_PORT;
+import static org.hiero.mirror.importer.TestUtils.findAllMatches;
 import static org.hiero.mirror.importer.TestUtils.generateRandomByteArray;
 import static org.hiero.mirror.importer.TestUtils.zstd;
 import static org.hiero.mirror.importer.reader.block.BlockStreamReaderTest.TEST_BLOCK_FILES;
@@ -32,10 +34,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import lombok.SneakyThrows;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -47,8 +46,13 @@ import org.hiero.mirror.common.domain.transaction.RecordFile;
 import org.hiero.mirror.importer.FileCopier;
 import org.hiero.mirror.importer.ImporterProperties;
 import org.hiero.mirror.importer.TestUtils;
+import org.hiero.mirror.importer.addressbook.ConsensusNodeService;
 import org.hiero.mirror.importer.downloader.CommonDownloaderProperties;
 import org.hiero.mirror.importer.downloader.CommonDownloaderProperties.PathType;
+import org.hiero.mirror.importer.downloader.NodeSignatureVerifier;
+import org.hiero.mirror.importer.downloader.block.cutover.CutoverProperties;
+import org.hiero.mirror.importer.downloader.block.cutover.CutoverService;
+import org.hiero.mirror.importer.downloader.block.cutover.CutoverServiceImpl;
 import org.hiero.mirror.importer.downloader.block.tss.LedgerIdPublicationTransactionParser;
 import org.hiero.mirror.importer.downloader.block.tss.TssVerifier;
 import org.hiero.mirror.importer.downloader.provider.S3StreamFileProvider;
@@ -56,7 +60,9 @@ import org.hiero.mirror.importer.downloader.provider.StreamFileProvider;
 import org.hiero.mirror.importer.downloader.record.RecordDownloaderProperties;
 import org.hiero.mirror.importer.exception.BlockStreamException;
 import org.hiero.mirror.importer.exception.InvalidStreamFileException;
+import org.hiero.mirror.importer.parser.record.sidecar.SidecarProperties;
 import org.hiero.mirror.importer.reader.block.BlockStreamReaderImpl;
+import org.hiero.mirror.importer.reader.block.InitialStateReader;
 import org.hiero.mirror.importer.reader.block.hash.BlockStateProofHasher;
 import org.hiero.mirror.importer.reader.block.record.CompositeRecordFileItemReader;
 import org.hiero.mirror.importer.repository.RecordFileRepository;
@@ -145,18 +151,24 @@ final class BlockFileSourceTest {
                 })
                 .when(blockFileTransformer)
                 .transform(any(BlockFile.class));
-        cutoverService =
-                new CutoverServiceImpl(properties, mock(RecordDownloaderProperties.class), recordFileRepository);
+        cutoverService = new CutoverServiceImpl(
+                properties,
+                mock(CutoverProperties.class),
+                mock(RecordDownloaderProperties.class),
+                recordFileRepository);
         blockStreamVerifier = spy(new BlockStreamVerifier(
                 blockFileTransformer,
                 mock(BlockStateProofHasher.class),
+                mock(ConsensusNodeService.class),
                 cutoverService,
                 mock(LedgerIdPublicationTransactionParser.class),
                 meterRegistry,
+                mock(NodeSignatureVerifier.class),
                 cutoverService,
                 mock(TssVerifier.class)));
         blockFileSource = new BlockFileSource(
-                new BlockStreamReaderImpl(new CompositeRecordFileItemReader()),
+                new BlockStreamReaderImpl(
+                        mock(InitialStateReader.class), new CompositeRecordFileItemReader(new SidecarProperties())),
                 blockStreamVerifier,
                 commonDownloaderProperties,
                 cutoverService,
@@ -205,9 +217,10 @@ final class BlockFileSourceTest {
         blockFileSource.get();
 
         // then
-        verify(blockStreamVerifier)
-                .verify(assertArg(b ->
-                        assertThat(b).returns(null, BlockFile::getBytes).returns(blockNumber(0), BlockFile::getIndex)));
+        verify(blockStreamVerifier).verify(assertArg(b -> assertThat(b)
+                .returns(null, BlockFile::getBytes)
+                .returns(blockNumber(0), BlockFile::getIndex)
+                .returns(true, from(block -> block.getSize() > 0))));
         verify(recordFileRepository).findLatest();
 
         final var logs = output.getAll();
@@ -251,9 +264,10 @@ final class BlockFileSourceTest {
         blockFileSource.get();
 
         // then
-        verify(blockStreamVerifier)
-                .verify(assertArg(b ->
-                        assertThat(b).returns(null, BlockFile::getBytes).returns(blockNumber(0), BlockFile::getIndex)));
+        verify(blockStreamVerifier).verify(assertArg(b -> assertThat(b)
+                .returns(null, BlockFile::getBytes)
+                .returns(blockNumber(0), BlockFile::getIndex)
+                .returns(true, from(block -> block.getSize() > 0))));
         verify(recordFileRepository).findLatest();
 
         var logs = output.getAll();
@@ -275,7 +289,8 @@ final class BlockFileSourceTest {
                 .toFile());
         verify(blockStreamVerifier).verify(assertArg(b -> assertThat(b)
                 .returns(expectedBytes, BlockFile::getBytes)
-                .returns(blockNumber(1), BlockFile::getIndex)));
+                .returns(blockNumber(1), BlockFile::getIndex)
+                .returns(expectedBytes.length, BlockFile::getSize)));
         verify(recordFileRepository).findLatest();
 
         logs = output.getAll();
@@ -344,7 +359,8 @@ final class BlockFileSourceTest {
         // then
         verify(blockStreamVerifier).verify(assertArg(b -> assertThat(b)
                 .returns(null, BlockFile::getBytes)
-                .returns(block0.getIndex(), BlockFile::getIndex)));
+                .returns(block0.getIndex(), BlockFile::getIndex)
+                .returns(true, from(block -> block.getSize() > 0))));
         verify(recordFileRepository).findLatest();
 
         final var logs = output.getAll();
@@ -369,8 +385,9 @@ final class BlockFileSourceTest {
         blockFileSource.get();
 
         // then
-        verify(blockStreamVerifier)
-                .verify(assertArg(b -> assertThat(b).returns(block0.getIndex(), BlockFile::getIndex)));
+        verify(blockStreamVerifier).verify(assertArg(b -> assertThat(b)
+                .returns(block0.getIndex(), BlockFile::getIndex)
+                .returns(true, from(block -> block.getSize() > 0))));
         verify(recordFileRepository).findLatest();
     }
 
@@ -384,7 +401,8 @@ final class BlockFileSourceTest {
         when(streamFileProvider.get(any()))
                 .thenReturn(Mono.delay(Duration.ofMillis(120L)).then(Mono.empty()));
         final var source = new BlockFileSource(
-                new BlockStreamReaderImpl(new CompositeRecordFileItemReader()),
+                new BlockStreamReaderImpl(
+                        mock(InitialStateReader.class), new CompositeRecordFileItemReader(new SidecarProperties())),
                 blockStreamVerifier,
                 commonDownloaderProperties,
                 cutoverService,
@@ -413,7 +431,8 @@ final class BlockFileSourceTest {
         importerProperties.setStartBlockNumber(-1L);
         final var streamFileProvider = mock(StreamFileProvider.class);
         final var source = new BlockFileSource(
-                new BlockStreamReaderImpl(new CompositeRecordFileItemReader()),
+                new BlockStreamReaderImpl(
+                        mock(InitialStateReader.class), new CompositeRecordFileItemReader(new SidecarProperties())),
                 blockStreamVerifier,
                 commonDownloaderProperties,
                 cutoverService,
@@ -445,8 +464,9 @@ final class BlockFileSourceTest {
                 .hasMessage("Failed to download block file " + block0.getName());
 
         // then
-        verify(blockStreamVerifier)
-                .verify(assertArg(b -> assertThat(b).returns(block0.getIndex(), BlockFile::getIndex)));
+        verify(blockStreamVerifier).verify(assertArg(b -> assertThat(b)
+                .returns(block0.getIndex(), BlockFile::getIndex)
+                .returns(true, from(block -> block.getSize() > 0))));
         verify(recordFileRepository).findLatest();
 
         final var logs = output.getAll();
@@ -513,14 +533,5 @@ final class BlockFileSourceTest {
         assertThat(actualFile).isFile();
         final byte[] actual = FileUtils.readFileToByteArray(actualFile);
         assertThat(actual).isEqualTo(expected);
-    }
-
-    private Collection<String> findAllMatches(String message, String pattern) {
-        var matcher = Pattern.compile(pattern).matcher(message);
-        var result = new ArrayList<String>();
-        while (matcher.find()) {
-            result.add(matcher.group());
-        }
-        return result;
     }
 }

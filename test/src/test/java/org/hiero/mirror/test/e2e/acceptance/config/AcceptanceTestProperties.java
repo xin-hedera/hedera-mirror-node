@@ -75,13 +75,12 @@ public final class AcceptanceTestProperties {
     private HederaNetwork network = HederaNetwork.TESTNET;
 
     @NotNull
-    @Valid
-    private Set<NodeProperties> nodes = new LinkedHashSet<>();
+    private Set<@Valid NodeProperties> nodes = new LinkedHashSet<>();
 
     @NotNull
     @DecimalMax("1000000")
     @DecimalMin("1.0")
-    private BigDecimal operatorBalance = BigDecimal.valueOf(73); // Amount in USD
+    private BigDecimal operatorBalance = BigDecimal.valueOf(76); // Amount in USD
 
     @NotBlank
     private String operatorId;

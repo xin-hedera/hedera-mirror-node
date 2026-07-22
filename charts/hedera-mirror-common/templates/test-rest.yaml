@@ -20,19 +20,38 @@ spec:
   executionRequest:
     args:
       - /data/repo/tools/k6/src/rest/apis.js
+      {{- if $.Values.testkube.prometheus.enabled }}
+      - --no-summary
+      - --no-thresholds
+      - --out
+      - experimental-prometheus-rw
+      {{- end }}
+    {{- if not $.Values.testkube.prometheus.enabled }}
     artifactRequest:
       storageClassName: standard
       volumeMountPath: /share
+    {{- end }}
     envConfigMaps:
       - mapToVariables: true
         mount: false
         reference:
           name: {{ include "hedera-mirror-common.fullname" $ }}-test-rest
+    {{- if $.Values.testkube.prometheus.enabled }}
+    envSecrets:
+      - mapToVariables: true
+        mount: false
+        reference:
+          name: {{ include "hedera-mirror-common.fullname" $ }}-test-prometheus
+    {{- end }}
     variables:
       BASE_URL:
         name: BASE_URL
         type: basic
         value: http://{{ $target.release }}-rest.{{ $target.namespace }}.svc.cluster.local
+      NAMESPACE:
+        name: NAMESPACE
+        type: basic
+        value: {{ $target.namespace }}
       TEST_REPORTS_DIR:
         name: TEST_REPORTS_DIR
         type: basic

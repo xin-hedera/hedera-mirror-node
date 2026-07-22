@@ -21,7 +21,7 @@ import org.hiero.mirror.importer.parser.record.RecordStreamFileListener;
 import org.hiero.mirror.importer.repository.RecordFileRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.util.Version;
-import org.springframework.jdbc.core.DataClassRowMapper;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -122,7 +122,7 @@ public class SyntheticCryptoTransferApprovalMigration extends AsyncJavaMigration
             join entity e on e.id = t.sender and e.timestamp_range @> t.consensus_timestamp
             order by t.consensus_timestamp
             """;
-    private static final RowMapper<ApprovalTransfer> ROW_MAPPER = new DataClassRowMapper<>(ApprovalTransfer.class);
+    private static final RowMapper<ApprovalTransfer> ROW_MAPPER = new BeanPropertyRowMapper<>(ApprovalTransfer.class);
     private static final String UPDATE_CRYPTO_TRANSFER_SQL = """
             update crypto_transfer
             set is_approval = true
@@ -205,10 +205,10 @@ public class SyntheticCryptoTransferApprovalMigration extends AsyncJavaMigration
                     var updateParams = new MapSqlParameterSource()
                             .addValue("consensus_timestamp", transfer.consensusTimestamp)
                             .addValue("payer_account_id", transfer.payerAccountId);
-                    if (transfer.transferType == TRANSFER_TYPE.CRYPTO_TRANSFER) {
+                    if (transfer.transferType == TransferType.CRYPTO_TRANSFER) {
                         updateSql = UPDATE_CRYPTO_TRANSFER_SQL;
                         updateParams.addValue("sender", transfer.sender);
-                    } else if (transfer.transferType == TRANSFER_TYPE.NFT_TRANSFER) {
+                    } else if (transfer.transferType == TransferType.NFT_TRANSFER) {
                         updateSql = UPDATE_NFT_TRANSFER_SQL;
                         updateParams.addValue("index", transfer.index);
                     } else {
@@ -293,6 +293,12 @@ public class SyntheticCryptoTransferApprovalMigration extends AsyncJavaMigration
         this.executed.set(executed);
     }
 
+    private enum TransferType {
+        CRYPTO_TRANSFER,
+        NFT_TRANSFER,
+        TOKEN_TRANSFER
+    }
+
     @Data
     static class ApprovalTransfer {
         private long consensusTimestamp;
@@ -302,12 +308,6 @@ public class SyntheticCryptoTransferApprovalMigration extends AsyncJavaMigration
         private long payerAccountId;
         private long sender;
         private Long tokenId;
-        private TRANSFER_TYPE transferType;
-    }
-
-    private enum TRANSFER_TYPE {
-        CRYPTO_TRANSFER,
-        NFT_TRANSFER,
-        TOKEN_TRANSFER
+        private TransferType transferType;
     }
 }

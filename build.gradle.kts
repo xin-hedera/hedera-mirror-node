@@ -17,14 +17,18 @@ plugins {
 // Can't use typed variable syntax due to Dependabot limitations
 extra.apply {
     set("besuVersion", "25.2.2")
-    set("blockNodeVersion", "0.30.2")
-    set("consensusNodeVersion", "0.73.0-rc.1")
-    set("grpcVersion", "1.80.0")
-    set("jooq.version", "3.20.11") // Must match buildSrc/build.gradle.kts
+    set("blockNodeVersion", "0.38.1")
+    set("consensusNodeVersion", "0.75.1")
+    set("httpclient5.version", "5.6.2") // Temporary until next Spring Boot
+    set("httpcore5.version", "5.4.3") // Temporary until next Spring Boot
+    set("jackson-bom.version", "3.1.5") // Temporary until next Spring Boot
+    set("jackson-2-bom.version", "2.22.1") // Temporary until next Spring Boot
+    set("jooq.version", "3.21.6") // Must match buildSrc/build.gradle.kts
+    set("logback.version", "1.5.36") // Temporary until next Spring Boot
     set("mapStructVersion", "1.6.3")
-    set("nodeJsVersion", "24.13.0")
-    set("protobufVersion", "4.34.1")
-    set("springGrpcVersion", "1.0.1")
+    set("nodeJsVersion", "24.18.0")
+    set("postgresql.version", "42.7.13") // Temporary until next Spring Boot
+    set("tomcat.version", "11.0.23") // Temporary until next Spring Boot
     set("tuweniVersion", "2.3.1")
 }
 
@@ -32,59 +36,55 @@ extra.apply {
 // using a dependency
 dependencies {
     constraints {
-        val besuVersion: String by rootProject.extra
-        val blockNodeVersion: String by rootProject.extra
-        val consensusNodeVersion: String by rootProject.extra
-        val grpcVersion: String by rootProject.extra
-        val mapStructVersion: String by rootProject.extra
-        val protobufVersion: String by rootProject.extra
-        val springGrpcVersion: String by rootProject.extra
-        val tuweniVersion: String by rootProject.extra
+        val besuVersion = rootProject.extra["besuVersion"] as String
+        val blockNodeVersion = rootProject.extra["blockNodeVersion"] as String
+        val consensusNodeVersion = rootProject.extra["consensusNodeVersion"] as String
+        val mapStructVersion = rootProject.extra["mapStructVersion"] as String
+        val tuweniVersion = rootProject.extra["tuweniVersion"] as String
 
-        api("com.asarkar.grpc:grpc-test:2.0.0")
+        api("com.asarkar.grpc:grpc-test:2.0.1")
         api("com.esaulpaugh:headlong:13.3.1")
-        api("com.github.luben:zstd-jni:1.5.7-7")
+        api("com.github.luben:zstd-jni:1.5.7-11")
         api("com.github.meanbeanlib:meanbean:3.0.0-M9")
         api("com.github.vertical-blank:sql-formatter:2.0.5")
         api("com.bucket4j:bucket4j-core:8.10.1")
-        api("com.google.guava:guava:33.5.0-jre")
-        api("com.google.protobuf:protobuf-java:$protobufVersion")
+        api("com.google.guava:guava:33.6.0-jre")
         api("com.graphql-java-generator:graphql-java-client-runtime:4.0.2")
         api("com.graphql-java:graphql-java-extended-scalars:24.0")
         api("com.graphql-java:graphql-java-extended-validation:24.0")
-        api("com.hedera.cryptography:hedera-cryptography-wraps:3.7.7")
+        api("com.hedera.cryptography:hedera-cryptography-wraps:3.12.0")
         api("com.hedera.hashgraph:app:$consensusNodeVersion")
         api("com.hedera.hashgraph:app-service-entity-id-impl:$consensusNodeVersion")
         api("com.hedera.hashgraph:hedera-protobuf-java-api:$consensusNodeVersion")
-        api("com.hedera.hashgraph:sdk:2.68.0")
+        api("com.hedera.hashgraph:sdk:2.74.0")
         api("com.ongres.scram:client:2.1")
         api("commons-beanutils:commons-beanutils:1.11.0")
-        api("commons-io:commons-io:2.21.0")
-        api("io.cucumber:cucumber-bom:7.34.3")
-        api("io.fabric8:kubernetes-client-bom:7.6.1")
+        api("commons-io:commons-io:2.22.0")
+        api("io.cucumber:cucumber-bom:7.34.4")
+        api("io.fabric8:kubernetes-client-bom:7.8.0")
         api("io.github.mweirauch:micrometer-jvm-extras:0.3.0")
-        api("io.grpc:grpc-bom:$grpcVersion")
-        api("io.hypersistence:hypersistence-utils-hibernate-71:3.15.2")
+        api("io.hypersistence:hypersistence-utils-hibernate-71:3.15.4")
         api("jakarta.inject:jakarta.inject-api:2.0.1")
-        api("net.java.dev.jna:jna:5.18.1")
+        api("net.java.dev.jna:jna:5.19.0")
         api("org.apache.commons:commons-collections4:4.5.0")
         api("org.apache.commons:commons-compress:1.28.0")
         api("org.apache.commons:commons-math3:3.6.1")
         api("org.apache.tuweni:tuweni-bytes:$tuweniVersion")
         api("org.apache.tuweni:tuweni-units:$tuweniVersion")
         api("org.apache.velocity:velocity-engine-core:2.4.1")
-        api("org.gaul:s3proxy:3.0.0")
+        api("org.bouncycastle:bcpkix-jdk18on:1.85") // Temporary until next hedera-app
+        api("org.bouncycastle:bcprov-jdk18on:1.85")
+        api("org.gaul:s3proxy:3.3.0")
+        api("org.graalvm.nativeimage:svm:25.0.3")
         api("org.hiero.block-node:protobuf-sources:$blockNodeVersion")
         api("org.hyperledger.besu:secp256k1:0.8.2")
         api("org.hyperledger.besu:besu-datatypes:$besuVersion")
         api("org.hyperledger.besu:evm:$besuVersion")
         api("org.mapstruct:mapstruct:$mapStructVersion")
         api("org.mapstruct:mapstruct-processor:$mapStructVersion")
-        api("org.msgpack:jackson-dataformat-msgpack:0.9.11")
-        api("org.springframework.grpc:spring-grpc-spring-boot-starter:$springGrpcVersion")
-        api("org.springframework.grpc:spring-grpc-test:$springGrpcVersion")
-        api("org.web3j:core:5.0.2")
-        api("software.amazon.awssdk:bom:2.42.25")
+        api("org.msgpack:jackson-dataformat-msgpack:0.9.12")
+        api("org.web3j:core:6.0.0")
+        api("software.amazon.awssdk:bom:2.48.3")
         api("tech.pegasys:jc-kzg-4844:1.0.0")
         api("uk.org.webcompere:system-stubs-jupiter:2.1.8")
     }
@@ -101,7 +101,7 @@ idea {
 
 // Spotless uses Prettier and it requires Node.js
 node {
-    val nodeJsVersion: String by rootProject.extra
+    val nodeJsVersion = rootProject.extra["nodeJsVersion"] as String
     download = true
     version = nodeJsVersion
     workDir = rootDir.resolve(".gradle").resolve("nodejs")

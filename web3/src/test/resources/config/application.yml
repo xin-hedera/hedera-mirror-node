@@ -3,6 +3,9 @@
 hiero:
   mirror:
     web3:
+      cache:
+        # Caffeine has no "ms" short form; PT0.1S is 100ms to keep cache-expiry tests fast
+        entity: expireAfterWrite=PT0.1S,maximumSize=10000,recordStats
       evm:
         properties:
           contracts.maxRefundPercentOfGasLimit: "100"
@@ -17,9 +20,6 @@ hiero:
           350: 0.66.0
           400: 0.67.0
         network: OTHER
-      opcode:
-        tracer:
-          enabled: true
       requestTimeout: 60s
 spring:
   test:

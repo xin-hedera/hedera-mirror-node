@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {has, isEmpty} from 'lodash-es';
-import log4js from 'log4js';
 import parseDuration from 'parse-duration';
 import prettyMilliseconds from 'pretty-ms';
 import querystring from 'querystring';
@@ -10,7 +9,6 @@ import config from './config';
 const apiPrefix = '/api/v1';
 const DEFAULT_LIMIT = 10;
 const {freshness} = config;
-const logger = log4js.getLogger();
 
 /**
  * Create and return the url for a rest api call
@@ -26,7 +24,7 @@ const getUrl = (server, path, query = undefined) => {
     endpoint = server.replace('https', 'http');
   }
 
-  let url = `${endpoint}${apiPrefix}${path}`;
+  let url = `${endpoint}${path.startsWith(apiPrefix) ? '' : apiPrefix}${path}`;
   if (query) {
     const qs = querystring.stringify(query);
     if (qs !== '') {

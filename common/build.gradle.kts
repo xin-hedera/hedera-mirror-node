@@ -9,7 +9,7 @@ configurations.all {
 }
 
 dependencies {
-    val testClasses by configurations.registering
+    val testClasses = configurations.register("testClasses")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
     api("com.fasterxml.jackson.core:jackson-databind")
     api("com.fasterxml.jackson.dataformat:jackson-dataformat-csv")
@@ -23,12 +23,12 @@ dependencies {
     api("org.apache.commons:commons-lang3")
     api("org.apache.tuweni:tuweni-bytes")
     api("org.apache.tuweni:tuweni-units")
+    api("org.bouncycastle:bcprov-jdk18on")
     api("org.slf4j:jcl-over-slf4j")
     api("org.springframework.boot:spring-boot-jackson2")
     api("org.springframework.boot:spring-boot-starter-data-jpa")
     api("org.springframework.boot:spring-boot-starter-micrometer-metrics")
     api("org.springframework.boot:spring-boot-starter-validation")
-    api("org.web3j:core")
     testImplementation("jakarta.inject:jakarta.inject-api")
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("org.junit.platform:junit-platform-launcher")

@@ -15,8 +15,8 @@ hiero:
 logging:
   level:
     root: warn
-    org.hiero.mirror.grpc: info
-    io.grpc.netty.shaded.io.grpc.netty.NettyServerHandler: error
+    org.hiero.mirror: info
+    io.grpc.netty.NettyServerHandler: error
     org.hibernate.orm.deprecation: error # Suppress hibernate.dialect warnings
     # io.grpc: debug
     # org.hibernate.SQL: debug
@@ -47,10 +47,12 @@ server:
     enabled: true
   http2:
     enabled: true
-  max-http-request-header-size: 2KB
+  max-http-request-header-size: 3KB
   port: 8081
   shutdown: graceful
 spring:
+  aot:
+    enabled: true
   application:
     name: grpc
   datasource:
@@ -72,12 +74,16 @@ spring:
     server:
       health:
         enabled: false
+      inbound:
+        message:
+          max-size: 1024B
+        metadata:
+          max-size: 2048B
       keep-alive:
         max-idle: 10m
-        permit-time: 90s
+        permit:
+          time: 90s
         time: 5m
-      max-inbound-message-size: 1024B
-      max-inbound-metadata-size: 2048B
       port: ${hiero.mirror.grpc.port}
   jpa:
     database: PostgreSQL

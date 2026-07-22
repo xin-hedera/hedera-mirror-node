@@ -3,6 +3,7 @@
 package org.hiero.mirror.importer.reader.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.hiero.mirror.importer.TestUtils.gzip;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -16,20 +17,26 @@ import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import java.time.Instant;
 import java.util.function.Function;
+import org.apache.commons.lang3.Strings;
 import org.hiero.mirror.common.domain.DigestAlgorithm;
+import org.hiero.mirror.common.domain.transaction.RecordFile;
 import org.hiero.mirror.common.util.DomainUtils;
 import org.hiero.mirror.importer.TestUtils;
 import org.hiero.mirror.importer.domain.StreamFileData;
 import org.hiero.mirror.importer.exception.InvalidStreamFileException;
 import org.junit.jupiter.api.Test;
 
-class ProtoRecordFileReaderTest extends AbstractRecordFileReaderTest {
+final class ProtoRecordFileReaderTest extends AbstractRecordFileReaderTest {
 
     private static final String FILENAME = "2022-06-21T09_15_38.325469003Z.rcd.gz";
+    private static final long FILE_TIMESTAMP = DomainUtils.convertToNanosMax(
+            Instant.parse(Strings.CS.removeEnd(FILENAME, ".rcd.gz").replace("_", ":")));
 
     @Override
     protected RecordFileReader getRecordFileReader() {
@@ -46,9 +53,14 @@ class ProtoRecordFileReaderTest extends AbstractRecordFileReaderTest {
         var bytes = gzip(ProtoRecordStreamFile.of(RecordStreamFile.Builder::clearRecordStreamItems));
         var reader = new ProtoRecordFileReader();
         var streamFileData = StreamFileData.from(FILENAME, bytes);
-        var exception = assertThrows(InvalidStreamFileException.class, () -> reader.read(streamFileData));
-        var expected = "No record stream objects in record file " + FILENAME;
-        assertEquals(expected, exception.getMessage());
+        final var recordFile = reader.read(streamFileData);
+        assertThat(recordFile)
+                .returns(FILE_TIMESTAMP, RecordFile::getConsensusEnd)
+                .returns(FILE_TIMESTAMP, RecordFile::getConsensusStart)
+                .returns(0L, RecordFile::getCount)
+                .returns(FILENAME, RecordFile::getName)
+                .extracting(RecordFile::getItems, LIST)
+                .isEmpty();
     }
 
     @Test
@@ -79,6 +91,68 @@ class ProtoRecordFileReaderTest extends AbstractRecordFileReaderTest {
         var recordFile = reader.read(streamFileData);
 
         assertThat(recordFile.getDigestAlgorithm()).isEqualTo(DigestAlgorithm.SHA_384);
+    }
+
+    @Test
+    void verifyRecordFileStartAndEndTimestampsOnOutOfOrderItems() {
+        final long earliest = 1_000_000_000L;
+        final long middle = 2_000_000_000L;
+        final long latest = 3_000_000_000L;
+        var bytes = gzip(ProtoRecordStreamFile.of(b -> {
+            b.clearRecordStreamItems();
+            b.addRecordStreamItems(buildRecordStreamItemWithTimestamp(latest));
+            b.addRecordStreamItems(buildRecordStreamItemWithTimestamp(earliest));
+            b.addRecordStreamItems(buildRecordStreamItemWithTimestamp(middle));
+            return b;
+        }));
+
+        var recordFile = new ProtoRecordFileReader().read(StreamFileData.from(FILENAME, bytes));
+
+        assertThat(recordFile)
+                .returns(earliest, RecordFile::getConsensusStart)
+                .returns(latest, RecordFile::getConsensusEnd)
+                .returns(3L, RecordFile::getCount);
+    }
+
+    @Test
+    void verifyRecordFileStartAndEndTimestampsOrderedItems() {
+        final long earliest = 1_000_000_000L;
+        final long middle = 2_000_000_000L;
+        final long latest = 3_000_000_000L;
+        var bytes = gzip(ProtoRecordStreamFile.of(b -> {
+            b.clearRecordStreamItems();
+            b.addRecordStreamItems(buildRecordStreamItemWithTimestamp(earliest));
+            b.addRecordStreamItems(buildRecordStreamItemWithTimestamp(middle));
+            b.addRecordStreamItems(buildRecordStreamItemWithTimestamp(latest));
+            return b;
+        }));
+
+        var recordFile = new ProtoRecordFileReader().read(StreamFileData.from(FILENAME, bytes));
+
+        assertThat(recordFile)
+                .returns(earliest, RecordFile::getConsensusStart)
+                .returns(latest, RecordFile::getConsensusEnd)
+                .returns(3L, RecordFile::getCount);
+    }
+
+    private RecordStreamItem buildRecordStreamItemWithTimestamp(long timestamp) {
+        return RecordStreamItem.newBuilder()
+                .setTransaction(Transaction.newBuilder()
+                        .setSignedTransactionBytes(SignedTransaction.newBuilder()
+                                .setBodyBytes(TransactionBody.newBuilder()
+                                        .setCryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                                                .build())
+                                        .build()
+                                        .toByteString())
+                                .build()
+                                .toByteString()))
+                .setRecord(TransactionRecord.newBuilder()
+                        .setConsensusTimestamp(Timestamp.newBuilder()
+                                .setSeconds(timestamp / 1_000_000_000)
+                                .setNanos((int) (timestamp % 1_000_000_000))
+                                .build())
+                        .build())
+                .build();
     }
 
     private static class ProtoRecordStreamFile {

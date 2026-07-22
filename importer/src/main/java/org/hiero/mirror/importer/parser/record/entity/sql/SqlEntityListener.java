@@ -60,8 +60,8 @@ import org.hiero.mirror.importer.domain.EntityIdService;
 import org.hiero.mirror.importer.exception.ImporterException;
 import org.hiero.mirror.importer.exception.ParserException;
 import org.hiero.mirror.importer.parser.batch.BatchPersister;
+import org.hiero.mirror.importer.parser.record.RecordParserProperties;
 import org.hiero.mirror.importer.parser.record.RecordStreamFileListener;
-import org.hiero.mirror.importer.parser.record.entity.ConditionOnEntityRecordParser;
 import org.hiero.mirror.importer.parser.record.entity.EntityListener;
 import org.hiero.mirror.importer.parser.record.entity.EntityProperties;
 import org.hiero.mirror.importer.parser.record.entity.ParserContext;
@@ -74,7 +74,6 @@ import org.springframework.util.CollectionUtils;
 @CustomLog
 @Named
 @Order(3)
-@ConditionOnEntityRecordParser
 @RequiredArgsConstructor
 public class SqlEntityListener implements EntityListener, RecordStreamFileListener {
 
@@ -87,15 +86,18 @@ public class SqlEntityListener implements EntityListener, RecordStreamFileListen
     private final NftRepository nftRepository;
     private final TokenAccountRepository tokenAccountRepository;
     private final SqlProperties sqlProperties;
+    private final RecordParserProperties parserProperties;
 
     @Override
     public boolean isEnabled() {
-        return sqlProperties.isEnabled();
+        return sqlProperties.isEnabled() && parserProperties.isEnabled();
     }
 
     @Override
     public void onEnd(RecordFile recordFile) {
-        flush();
+        if (isEnabled()) {
+            flush();
+        }
     }
 
     @Override
@@ -115,12 +117,12 @@ public class SqlEntityListener implements EntityListener, RecordStreamFileListen
 
     @Override
     public void onContractLog(ContractLog contractLog) {
-        context.add(contractLog);
+        context.add(contractLog, contractLog.getConsensusTimestamp());
     }
 
     @Override
     public void onContractResult(ContractResult contractResult) throws ImporterException {
-        context.add(contractResult);
+        context.add(contractResult, contractResult.getConsensusTimestamp());
         if (entityProperties.getPersist().isContractTransactionHash()) {
             context.add(contractResult.toContractTransactionHash());
         }
@@ -401,7 +403,12 @@ public class SqlEntityListener implements EntityListener, RecordStreamFileListen
             }
         }
 
-        if (entityProperties.getPersist().shouldPersistTransactionHash(TransactionType.of(transaction.getType()))) {
+        var transactionType = TransactionType.of(transaction.getType());
+        // CONSENSUSSUBMITMESSAGE is excluded above but still needs a hash if it produced a synthetic contract log.
+        if (entityProperties.getPersist().shouldPersistTransactionHash(transactionType)
+                || (entityProperties.getPersist().isTransactionHash()
+                        && transactionType == TransactionType.CONSENSUSSUBMITMESSAGE
+                        && context.get(ContractLog.class, transaction.getConsensusTimestamp()) != null)) {
             var hash = transaction.toTransactionHash();
             if (hash != null && hash.hashIsValid()) {
                 context.add(hash);

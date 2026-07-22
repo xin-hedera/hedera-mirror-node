@@ -8,6 +8,7 @@ source ./utils/utils.sh
 source ./utils/input-utils.sh
 source ./utils/snapshot-utils.sh
 
+COLLECT_K6_REPORT="${COLLECT_K6_REPORT:-false}"
 CREATE_NEW_BACKUPS="${CREATE_NEW_BACKUPS:-true}"
 DEFAULT_POOL_MAX_PER_ZONE="${DEFAULT_POOL_MAX_PER_ZONE:-5}"
 DEFAULT_POOL_NAME="${DEFAULT_POOL_NAME:-default-pool}"
@@ -15,12 +16,15 @@ K6_TEST_REPORT_DIR="${K6_TEST_REPORT_DIR:-/tmp/mirrornode-k6-test-report}"
 K6_TEST_SUITE_NAME="${K6_TEST_SUITE_NAME:-test-suite-rest-mainnet-citus}"
 K8S_SOURCE_CLUSTER_CONTEXT=${K8S_SOURCE_CLUSTER_CONTEXT:-}
 K8S_TARGET_CLUSTER_CONTEXT=${K8S_TARGET_CLUSTER_CONTEXT:-}
+REQUIRE_CLEAN_TARGET=${REQUIRE_CLEAN_TARGET:-true}
 RESTORE="${RESTORE:-true}"
-RUN_ACCEPTANCE_TEST="${RUN_ACCEPTANCE_TEST:-true}"
+RUN_ACCEPTANCE_TEST="${RUN_ACCEPTANCE_TEST:-false}"
 RUN_K6_TEST="${RUN_K6_TEST:-true}"
 TEARDOWN_TARGET="${TEARDOWN_TARGET:-false}"
 TEST_KUBE_NAMESPACE="${TEST_KUBE_NAMESPACE:-testkube}"
 TEST_KUBE_TARGET_NAMESPACE="${TEST_KUBE_TARGET_NAMESPACE:-mainnet-citus}"
+SNAPSHOT_ID="${SNAPSHOT_ID:-}"
+USE_STATIC_SNAPSHOT="${USE_STATIC_SNAPSHOT:-true}"
 
 function deleteBackupsFromSource() {
   local lines
@@ -266,6 +270,10 @@ function snapshotSource() {
 }
 
 function patchBackupPaths() {
+  if [[ "${USE_STATIC_SNAPSHOT}" == "true" ]]; then
+    return 0
+  fi
+
   local lines
   lines="$(
     jq -r '
@@ -301,6 +309,10 @@ function patchBackupPaths() {
 }
 
 function scaleupResources() {
+  if [[ "${REQUIRE_CLEAN_TARGET}" == "false" ]]; then
+    return 0;
+  fi
+
   waitForClusterOperations "${DEFAULT_POOL_NAME}"
 
   gcloud container clusters resize "${GCP_K8S_TARGET_CLUSTER_NAME}" \
@@ -332,11 +344,6 @@ function scaleupResources() {
 }
 
 function restoreTarget() {
-  if [[ -z "${SNAPSHOT_ID}" ]]; then
-    log "SNAPSHOT_ID is not set"
-    exit 1
-  fi
-
   PAUSE_CLUSTER="true"
   changeContext "${K8S_TARGET_CLUSTER_CONTEXT}"
   configureAndValidateSnapshotRestore
@@ -519,15 +526,14 @@ function getHpaMaxReplicas() {
   kubectl get hpa "${hpaName}" -n "${namespace}" -o jsonpath='{.spec.maxReplicas}' 2>/dev/null || true
 }
 
-function restoreEnvironment() {
-  if [[ "${RESTORE}" != "true" ]]; then
-    return 0
-  fi
-
+function copyLiveEnvironment() {
   ensureContext K8S_SOURCE_CLUSTER_CONTEXT
-
   changeContext "${K8S_TARGET_CLUSTER_CONTEXT}"
-  if [[ $(kubectl get nodes -o json | jq '.items | length') != 0 ]]; then
+
+  local node_count
+  node_count=$(kubectl get nodes -o json | jq '.items | length')
+
+  if [[ "${REQUIRE_CLEAN_TARGET}" == "true" && "${node_count}" -ne 0 ]]; then
     log "There are GKE nodes in the target cluster, please teardown the environment before any restore attempt."
     exit 1
   fi
@@ -545,12 +551,21 @@ function runK6Test() {
   log "Awaiting k6 results"
   changeContext "${K8S_TARGET_CLUSTER_CONTEXT}"
   if kubectl get helmrelease -n "${TEST_KUBE_TARGET_NAMESPACE}" "${HELM_RELEASE_NAME}" >/dev/null 2>&1; then
-    if [[ "${RESTORE}" == "true" ]]; then
-      waitForHelmReleaseReady "${TEST_KUBE_TARGET_NAMESPACE}"
+    if [[ "${RESTORE}" != "true" && "${RUN_ACCEPTANCE_TEST}" != "true" ]]; then
+      # Resume and reconcile helmrelease, otherwise pods may still run the old images
+      flux resume helmrelease -n "${TEST_KUBE_TARGET_NAMESPACE}" "${HELM_RELEASE_NAME}"
+      flux reconcile helmrelease "${HELM_RELEASE_NAME}" -n "${TEST_KUBE_TARGET_NAMESPACE}" \
+        --timeout "${FLUX_RECONCILE_HR_TIMEOUT}"
     fi
+
+    waitForHelmReleaseReady "${TEST_KUBE_TARGET_NAMESPACE}"
 
     log "Suspending HelmRelease ${HELM_RELEASE_NAME} in namespace ${TEST_KUBE_TARGET_NAMESPACE}"
     flux suspend helmrelease -n "${TEST_KUBE_TARGET_NAMESPACE}" "${HELM_RELEASE_NAME}"
+  fi
+
+  if [[ "${USE_STATIC_SNAPSHOT}" == "true" ]]; then
+    scaleDeployment "${TEST_KUBE_TARGET_NAMESPACE}" 0 "app.kubernetes.io/component=importer"
   fi
 
   testkube run testsuite "${K6_TEST_SUITE_NAME}"
@@ -634,37 +649,36 @@ function waitForK6PodExecution() {
     scaleHpaMin "${targetNamespace}" "${hpaName}" "${maxReplicas}"
   fi
 
-  until kubectl wait -n "${TEST_KUBE_NAMESPACE}" --for=condition=complete "job/${job}" --timeout=10m > /dev/null 2>&1; do
+  until [[ $(testkube get executions --limit 4 -o json | jq --arg id "${job}" '[.results[] | select (.id == $id and .status != "running")] | any') == "true" ]]; do
     log "Waiting for job ${job} to complete for test ${testName}"
-    sleep 1
+    sleep 10
   done
-
-  until kubectl get job -n "${TEST_KUBE_NAMESPACE}" "${job}-scraper" >/dev/null 2>&1; do
-    log "Waiting for scraper"
-    sleep 1
-  done
-
-  until kubectl wait -n "${TEST_KUBE_NAMESPACE}" --for=condition=complete "job/${job}-scraper" --timeout=10m > /dev/null 2>&1; do
-    log "Waiting for scraper job to complete"
-    sleep 1
-  done
-
-  log "downloading artifacts for job ${job}"
-  until {
-    rm -f artifacts/report.md 2>/dev/null || true
-    testkube download artifacts "${job}"  >/dev/null 2>&1
-    [[ -s artifacts/report.md ]]
-  }; do
-    log "Waiting for artifacts to be available"
-    sleep 5
-  done
-
-  cat artifacts/report.md
-  mkdir -p "${K6_TEST_REPORT_DIR}"
-  cp artifacts/report.md "${K6_TEST_REPORT_DIR}/${testName}.md"
-  rm -fr artifacts
 
   scaleHpaMin "${targetNamespace}" "${hpaName}"
+
+  if [[ "${COLLECT_K6_REPORT}" == "true" ]]; then
+    log "downloading artifacts for job ${job}"
+    local deadline=$((SECONDS + 120))
+    rm -f artifacts/report.md 2>/dev/null || true
+    while true; do
+      testkube download artifacts "${job}"  >/dev/null 2>&1
+      if [[ -s artifacts/report.md ]]; then
+        cat artifacts/report.md
+        mkdir -p "${K6_TEST_REPORT_DIR}"
+        cp artifacts/report.md "${K6_TEST_REPORT_DIR}/${testName}.md"
+        rm -fr artifacts
+        break
+      fi
+
+      if (( SECONDS >= deadline )); then
+        log "Timed out waiting for artifacts after 120s"
+        break
+      fi
+
+      log "Waiting for artifacts to be available"
+      sleep 5
+    done
+  fi
 }
 
 function waitForHelmReleaseReady() {
@@ -699,8 +713,20 @@ function waitForHelmReleaseReady() {
   done
 }
 
-ensureContext K8S_TARGET_CLUSTER_CONTEXT
-restoreEnvironment
+function createEnvironment() {
+  if [[ "${RESTORE}" != "true" ]]; then
+    return 0
+  fi
+
+  if [[ "${USE_STATIC_SNAPSHOT}" == "true" ]]; then
+    export WAIT_FOR_STREAM_SYNC="false"
+    restoreTarget
+  else
+    copyLiveEnvironment
+  fi
+}
+
+createEnvironment
 runAcceptanceTest
 runK6Test
 teardownResources

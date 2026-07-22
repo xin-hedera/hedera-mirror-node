@@ -32,6 +32,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.mirror.common.CommonProperties;
@@ -60,6 +61,10 @@ public class EvmProperties {
     @NotNull
     private NavigableMap<Long, SemanticVersion> evmVersions = new TreeMap<>();
 
+    @Min(1)
+    private int maxFileAttempts = 12;
+
+    @NotNull
     @Min(21_000L)
     private long maxGasLimit = 15_000_000L;
 
@@ -82,13 +87,17 @@ public class EvmProperties {
     @NotNull
     private Map<String, String> properties = new HashMap<>();
 
+    private boolean sharedWritableState = false;
+
     // Contains the default properties merged with the user defined properties to pass to the consensus node library
     @EqualsAndHashCode.Exclude
     @Getter(lazy = true)
+    @ToString.Exclude
     private final Map<String, String> transactionProperties = buildTransactionProperties();
 
     @EqualsAndHashCode.Exclude
     @Getter(lazy = true)
+    @ToString.Exclude
     private final VersionedConfiguration versionedConfiguration =
             new ConfigProviderImpl(false, null, getTransactionProperties()).getConfiguration();
 
@@ -145,6 +154,7 @@ public class EvmProperties {
 
     private Map<String, String> buildTransactionProperties() {
         var props = new HashMap<String, String>();
+        props.put("blockStream.writerMode", "FILE");
         props.put("contracts.chainId", network.getChainId().toBigInteger().toString());
         props.put("contracts.evm.version", "v" + evmVersion.major() + "." + evmVersion.minor());
         props.put("contracts.maxRefundPercentOfGasLimit", String.valueOf(maxGasRefundPercentage));
