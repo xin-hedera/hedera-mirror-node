@@ -70,7 +70,7 @@ spec:
         enabled: false
     stackgres:
       backup:
-        enabled: true
+        enabled: false
         instances:
         - retention: 1
           cronSchedule: "0 0 1 * *"
