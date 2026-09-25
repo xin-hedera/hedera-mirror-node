@@ -62,10 +62,16 @@ spec:
         HIERO_MIRROR_REST_CHAINID: "0x129"
     stackgres:
       coordinator:
+        resources:
+          cpu: 1000m
+          memory: 6Gi
         persistentVolume:
           size: 65Gi
           storageClass: standard-rwo
       worker:
+        resources:
+          cpu: 1500m
+          memory: 8Gi
         persistentVolume:
           size: 90Gi
           storageClass: standard-rwo
