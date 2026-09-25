@@ -50,5 +50,9 @@ spec:
                 resources:
                   requests:
                     storage: 250Gi
+    stackgres:
+      operator:
+        image:
+          name: docker.io/xin323/stackgres-operator
     zfs:
       enabled: false
