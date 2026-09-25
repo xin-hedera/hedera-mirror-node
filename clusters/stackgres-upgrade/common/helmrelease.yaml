@@ -1,0 +1,54 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mirror
+  namespace: common
+spec:
+  chart:
+    spec:
+      chart: hedera-mirror-common
+      sourceRef:
+        kind: HelmRepository
+        name: hedera-mirror-node
+      valuesFiles:
+        - values.yaml
+        - values-v2.yaml
+      version: '0.163.1'
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: [""]
+        target:
+          kind: (MutatingWebhookConfiguration|SGConfig|ValidatingWebhookConfiguration)
+  install:
+    crds: CreateReplace
+  interval: 1m
+  timeout: 10m
+  upgrade:
+    cleanupOnFail: true
+  valuesFrom:
+    - kind: Secret
+      name: mirror
+  values:
+    minio:
+      enabled: true
+    prometheus:
+      grafana:
+        grafana.ini:
+          auth.basic:
+            enabled: true
+      prometheus:
+        prometheusSpec:
+          resources:
+            limits:
+              memory: 8Gi
+            requests:
+              memory: 4Gi
+          storageSpec:
+            volumeClaimTemplate:
+              spec:
+                resources:
+                  requests:
+                    storage: 250Gi
+    zfs:
+      enabled: false
