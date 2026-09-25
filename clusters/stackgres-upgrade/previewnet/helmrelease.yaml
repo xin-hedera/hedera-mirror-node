@@ -64,9 +64,11 @@ spec:
       coordinator:
         persistentVolume:
           size: 65Gi
+          storageClass: standard-rwo
       worker:
         persistentVolume:
           size: 90Gi
+          storageClass: standard-rwo
     test:
       enabled: false
     web3:
