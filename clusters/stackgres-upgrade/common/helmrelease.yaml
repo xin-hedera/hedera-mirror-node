@@ -53,6 +53,6 @@ spec:
     stackgres:
       operator:
         image:
-          name: docker.io/xin323/stackgres-operator
+          name: gcr.io/mirrornode/stackgres-operator
     zfs:
       enabled: false
