@@ -30,8 +30,6 @@ spec:
     - kind: Secret
       name: mirror
   values:
-    hyperdiskStorageClass:
-      enabled: false
     loki:
       loki:
         structuredConfig:
@@ -83,7 +81,7 @@ spec:
     traefik:
       service:
         annotations:
-          cloud.google.com/neg: '{ "exposed_ports":{ "443":{"name": "mirrornode-preprod-temp"} } }'
+          cloud.google.com/neg: '{ "exposed_ports":{ "443":{"name": "mirrornode-preprod"} } }'
     zfs:
       coordinator:
         initialDiskSize: 400GB

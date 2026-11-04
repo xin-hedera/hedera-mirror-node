@@ -8,4 +8,3 @@ resources:
 - helmrelease.yaml
 - sealed-secret.yaml
 - sealed-secret-grafana-cloud.yaml
-- storageclass-hyperdisk.yaml
