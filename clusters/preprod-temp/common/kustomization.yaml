@@ -4,11 +4,8 @@ metadata:
   name: mirror
 resources:
 - ../../base/common
-- ../../base/testkube
 - gitrepository.yaml
 - helmrelease.yaml
 - sealed-secret.yaml
 - sealed-secret-grafana-cloud.yaml
 - storageclass-hyperdisk.yaml
-patches:
-- path: patch-testkube-storage.yaml

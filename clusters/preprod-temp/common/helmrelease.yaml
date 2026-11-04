@@ -14,9 +14,6 @@ spec:
       valuesFiles:
         - charts/hedera-mirror-common/values.yaml
         - charts/hedera-mirror-common/values-v2.yaml
-  dependsOn:
-    - name: testkube
-      namespace: testkube
   driftDetection:
     mode: enabled
     ignore:
@@ -83,13 +80,6 @@ spec:
                   requests:
                     storage: 250Gi
                 storageClassName: hyperdisk-balanced
-    testkube:
-      enabled: true
-      test:
-        artifactStorageClassName: hyperdisk-balanced
-        gitBranch: main
-        target:
-          namespace: performance-citus
     traefik:
       service:
         annotations:
