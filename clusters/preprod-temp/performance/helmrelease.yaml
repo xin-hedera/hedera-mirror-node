@@ -74,6 +74,16 @@ spec:
             containers:
               patroni:
                 cpu: 6200m
+      worker:
+        config:
+          shared_buffers: "7GB"
+        resources:
+          cpu: 6200m
+          memory: 24Gi
+          requests:
+            containers:
+              patroni:
+                cpu: 6200m
     test:
       enabled: false
       config:
